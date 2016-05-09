@@ -4,7 +4,7 @@ from collections import deque
 
 
 class Task:
-    # 每一个Query都有对应Task，用于寻找和清理映射
+    # 每一个Query都有对应Task，用于查询和清理映射
     def __init__(self, task_id: int, command_num=0):
         self.task_id = task_id
         self.command_num = command_num
@@ -66,20 +66,19 @@ class TaskQueue:
                 self.queue.appendleft(head)
                 break
             else:
-                # 释放映射
+                # 清理映射
                 for ptr in head.mod_ptrs:
                     id_list, memo_list = self.virtual_map[ptr]
                     index = bisect_left(id_list, head.task_id)
                     del id_list[index]
                     del memo_list[index]
-
                     if not id_list:
                         del self.virtual_map[ptr]
         else:
-            # id重计数
+            # 重计数
             self.curr_id = 0
 
     async def ensure_empty(self):
-        # Query之后，有可能Queue非空，进行非阻塞等待，避免用锁
+        # Query之后，Queue有可能非空，进行非阻塞等待
         while self.queue:
             await sleep(1)
