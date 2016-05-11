@@ -18,9 +18,7 @@ class BasicEngine:
 
         if not isfile(filename):
             with open(filename, 'wb') as file:
-                # 第1个字节作为Indicator，0尚未正常关闭，1反之
                 file.write(b'\x00')
-                # 随后8个字节为root地址，初始值为9
                 file.write(pack('Q', 9))
                 self.root = IndexNode(is_leaf=True)
                 self.root.dump(file)
@@ -47,11 +45,22 @@ class BasicEngine:
     def free(self, ptr: int, size: int):
         self.allocator.free(ptr, size)
 
-    def time_travel(self, node: IndexNode):
-        pass
+    def time_travel(self, token: Task, node: IndexNode):
+        for i in range(len(node.ptrs_value)):
+            result = self.task_queue.get(token, node.nth_value_address(i))
+            if result:
+                node.ptrs_value[i] = result
+
+        if not node.is_leaf:
+            for i in range(len(node.ptrs_child)):
+                result = self.task_queue.get(token, node.nth_child_address(i))
+                if result:
+                    node.ptrs_child[i] = result
 
     def done_a_command(self, token: Task):
-        pass
+        token.command_num -= 1
+        if token.command_num == 0:
+            self.task_queue.clean()
 
     async def coro_exec(self, ptr: int, data: bytes):
         pass

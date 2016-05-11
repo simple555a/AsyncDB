@@ -56,12 +56,12 @@ class IndexNode:
             result.ptrs_child = self.ptrs_child[:]
         return result
 
-    def nth_child(self, n: int) -> int:
+    def nth_child_address(self, n: int) -> int:
         assert self.ptr > 0 and self.size > 0
         return self.ptr + self.size - (len(self.keys) + 1 - n) * 8
 
-    def nth_value(self, n: int) -> int:
-        tail = self.ptr + self.size if self.is_leaf else self.nth_child(0)
+    def nth_value_address(self, n: int) -> int:
+        tail = self.ptr + self.size if self.is_leaf else self.nth_child_address(0)
         return tail - (len(self.keys) - n) * 8
 
 
