@@ -78,7 +78,7 @@ class TaskQueue:
             # 重计数
             self.curr_id = 0
 
-    async def ensure_empty(self):
-        # Query之后，Queue有可能非空，进行非阻塞等待
+    async def ensure_close(self):
+        # Queue有可能非空，进行非阻塞等待
         while self.queue:
             await sleep(1)

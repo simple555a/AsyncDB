@@ -4,14 +4,14 @@ from struct import pack, unpack
 from Allocator import Allocator
 from AsyncFile import AsyncFile
 from Node import IndexNode
-from TaskQueue import TaskQueue
+from TaskQueue import TaskQueue, Task
 from Tinker import Tinker
 
-MIN_DEGREE = 64
+MIN_DEGREE = 128
 
 
 class BasicEngine:
-    # 处理琐碎事务
+    # 处理基础事务
     def __init__(self, filename: str):
         self.allocator = Allocator()
         self.task_queue = TaskQueue()
@@ -50,10 +50,10 @@ class BasicEngine:
     def time_travel(self, node: IndexNode):
         pass
 
-    def command_done(self):
+    def done_a_command(self, token: Task):
         pass
 
-    async def coro_exec(self):
+    async def coro_exec(self, ptr: int, data: bytes):
         pass
 
 
