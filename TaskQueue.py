@@ -1,5 +1,5 @@
 from asyncio import sleep
-from bisect import bisect_left
+from bisect import bisect_left, bisect
 from collections import deque
 
 
@@ -39,12 +39,12 @@ class TaskQueue:
             self.virtual_map[ptr] = (id_list, memo_list)
 
         # 避免重复
-        if not id_list or id_list[-1] != token.task_id:
+        if id_list and id_list[-1] == token.task_id:
+            memo_list[-1] = memo
+        else:
             id_list.append(token.task_id)
             memo_list.append(memo)
             token.mod_ptrs.append(ptr)
-        else:
-            memo_list[-1] = memo
 
     def get(self, token: Task, ptr: int):
         # 根据id查询一个映射
@@ -58,6 +58,14 @@ class TaskQueue:
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
             return id_list[-1], memo_list[-1]
+
+    def is_canceled(self, token: Task, ptr: int):
+        if ptr in self.virtual_map:
+            id_list, memo_list = self.virtual_map[ptr]
+            index = bisect(id_list, token.task_id)
+            for memo in memo_list[index:]:
+                if memo is None:
+                    return True
 
     def clean(self):
         while self.queue:
@@ -78,7 +86,7 @@ class TaskQueue:
             # 重计数
             self.curr_id = 0
 
-    async def ensure_close(self):
+    async def close(self):
         # Queue有可能非空，进行非阻塞等待
         while self.queue:
             await sleep(1)

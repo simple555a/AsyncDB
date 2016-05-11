@@ -1,3 +1,6 @@
+from asyncio import ensure_future
+from bisect import insort
+from collections import UserList
 from os.path import isfile
 from struct import pack, unpack
 
@@ -7,6 +10,12 @@ from Node import IndexNode
 from TaskQueue import TaskQueue, Task
 from Tinker import Tinker
 
+
+class SortedList(UserList):
+    def append(self, item):
+        insort(self.data, item)
+
+
 MIN_DEGREE = 128
 
 
@@ -14,11 +23,14 @@ class BasicEngine:
     # 处理基础事务
     def __init__(self, filename: str):
         self.allocator = Allocator()
+        self.commands = SortedList()
         self.task_queue = TaskQueue()
 
         if not isfile(filename):
             with open(filename, 'wb') as file:
+                # 0表示未关闭，1反之
                 file.write(b'\x00')
+                # 随后为root地址，初始值为9
                 file.write(pack('Q', 9))
                 self.root = IndexNode(is_leaf=True)
                 self.root.dump(file)
@@ -62,8 +74,26 @@ class BasicEngine:
         if token.command_num == 0:
             self.task_queue.clean()
 
-    async def coro_exec(self, ptr: int, data: bytes):
-        pass
+    def ensure_exec(self, token: Task, ptr: int, data: bytes, parent_ptr=0):
+        async def coro():
+            while self.commands:
+                ptr, parent_ptr, data, token = self.commands.pop(0)
+                return_later = not self.commands
+
+                is_canceled = False
+                if (parent_ptr and self.task_queue.is_canceled(token, parent_ptr)) or self.task_queue.is_canceled(token,
+                                                                                                                  ptr):
+                    is_canceled = True
+                if not is_canceled:
+                    await self.async_file.write(ptr, data)
+
+                self.done_a_command(token)
+                if return_later:
+                    return
+
+        if not self.commands:
+            ensure_future(coro())
+        self.commands.append((ptr, parent_ptr, data, token))
 
 
 class Engine(BasicEngine):
