@@ -25,7 +25,7 @@ class FastIO:
         self.cursor = offset + len(data)
         self.file.write(data)
 
-    def execute(self, offset: int, action: Callable[[FileIO], Any]):
+    def exec(self, offset: int, action: Callable[[FileIO], Any]):
         self.seek(offset)
         result = action(self.file)
         self.cursor = self.file.tell()
@@ -37,13 +37,13 @@ class AsyncFile:
         self.size = getsize(filename)
         self.event_loop = get_event_loop()
         self.executor = ThreadPoolExecutor(io_num)
-        self.io_queue = deque((FastIO(filename) for _ in range(io_num)), io_num)
+        self.io_que = deque((FastIO(filename) for _ in range(io_num)), io_num)
 
     async def read(self, offset: int, length: int):
         def async_call():
-            io = self.io_queue.pop()
+            io = self.io_que.pop()
             result = io.read(offset, length)
-            self.io_queue.append(io)
+            self.io_que.append(io)
             return result
 
         return await self.event_loop.run_in_executor(self.executor, async_call)
@@ -52,18 +52,18 @@ class AsyncFile:
         assert self.size >= offset + len(data)
 
         def async_call():
-            io = self.io_queue.pop()
+            io = self.io_que.pop()
             io.write(offset, data)
-            self.io_queue.append(io)
+            self.io_que.append(io)
 
         await self.event_loop.run_in_executor(self.executor, async_call)
 
-    async def execute(self, offset: int, action: Callable[[FileIO], Any]):
+    async def exec(self, offset: int, action: Callable[[FileIO], Any]):
         # read-only
         def async_call():
-            io = self.io_queue.pop()
-            result = io.execute(offset, action)
-            self.io_queue.append(io)
+            io = self.io_que.pop()
+            result = io.exec(offset, action)
+            self.io_que.append(io)
             return result
 
         return await self.event_loop.run_in_executor(self.executor, async_call)
