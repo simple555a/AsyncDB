@@ -5,8 +5,8 @@ from struct import pack, unpack
 
 class IndexNode:
     def __init__(self, is_leaf=True, file: FileIO = None):
-        self.size = 0
         self.ptr = 0
+        self.size = 0
 
         if file is None:
             self.is_leaf = is_leaf
@@ -47,28 +47,25 @@ class IndexNode:
 
     def clone(self):
         result = IndexNode(is_leaf=self.is_leaf)
-        result.size = self.size
-        result.ptr = self.ptr
-
         result.keys = self.keys[:]
         result.ptrs_value = self.ptrs_value[:]
         if not result.is_leaf:
             result.ptrs_child = self.ptrs_child[:]
         return result
 
-    def nth_child_address(self, n: int) -> int:
+    def nth_child(self, n: int) -> int:
         assert self.ptr > 0 and self.size > 0
         return self.ptr + self.size - (len(self.keys) + 1 - n) * 8
 
-    def nth_value_address(self, n: int) -> int:
-        tail = self.ptr + self.size if self.is_leaf else self.nth_child_address(0)
+    def nth_value(self, n: int) -> int:
+        tail = self.ptr + self.size if self.is_leaf else self.nth_child(0)
         return tail - (len(self.keys) - n) * 8
 
 
 class ValueNode:
     def __init__(self, key=None, value=None, file: FileIO = None):
-        self.size = 0
         self.ptr = 0
+        self.size = 0
 
         if file is None:
             self.key = key
