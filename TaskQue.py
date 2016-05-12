@@ -50,12 +50,12 @@ class TaskQue:
             memo_list.append(memo)
             token.mod_ptrs.append(ptr)
 
-    def get(self, token: Task, ptr: int, curr=False):
+    def get(self, token: Task, ptr: int, is_active=False):
         # 根据id查询一个映射
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
             index = bisect_left(id_list, token.id)
-            if curr:
+            if is_active:
                 index += 1
             if index < len(id_list):
                 return memo_list[index].head

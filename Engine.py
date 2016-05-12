@@ -59,12 +59,12 @@ class BasicEngine:
 
     def time_travel(self, token: Task, node: IndexNode):
         for i in range(len(node.ptrs_value)):
-            ptr = self.task_que.get(token, node.nth_value_ads(i), curr=True)
+            ptr = self.task_que.get(token, node.nth_value_ads(i), is_active=True)
             if ptr:
                 node.ptrs_value[i] = ptr
         if not node.is_leaf:
             for i in range(len(node.ptrs_child)):
-                ptr = self.task_que.get(token, node.nth_child_ads(i), curr=True)
+                ptr = self.task_que.get(token, node.nth_child_ads(i), is_active=True)
                 if ptr:
                     node.ptrs_child[i] = ptr
 
@@ -92,6 +92,7 @@ class BasicEngine:
         if not self.commands:
             ensure_future(coro())
         self.commands.append((ptr, prt_ptr, data, token))
+        token.command_num += 1
 
 
 class Engine(BasicEngine):
@@ -147,8 +148,8 @@ class Engine(BasicEngine):
             # 被替换节点状态设为0
             self.file.seek(ptr)
             self.file.write(pack('B', 0))
-            token.free_param = (org_val.ptr, org_val.size)
 
+            token.free_param = (org_val.ptr, org_val.size)
             # 同步
             self.task_que.set(token, address, org_val.ptr, val.ptr)
             # root可能改变
@@ -184,8 +185,11 @@ class Engine(BasicEngine):
             prt.ptrs_child.insert(child_index + 1, sibling.ptr)
             prt_b = bytes(prt)
             prt.ptr = self.malloc(prt.size)
+            # RAM数据更新完毕
 
-    def pop(self):
+            # 同步
+
+    def remove(self):
         pass
 
     def items(self):
