@@ -73,23 +73,26 @@ class BasicEngine:
                 self.free(*token.free_param)
             self.task_que.clean()
 
-    def ensure_write(self, token: Task, ptr: int, data: bytes, prt_ptr=0):
+    def ensure_write(self, token: Task, ptr: int, data: bytes, depend=0):
         async def coro():
             while self.commands:
-                ptr, prt_ptr, data, token = self.commands.pop(0)
-                do_ret = (len(self.commands) == 0)
+                ptr, depend, data, token = self.commands.pop(0)
+                ret = (len(self.commands) == 0)
 
-                if not ((prt_ptr and self.task_que.is_canceled(token, prt_ptr)) or self.task_que.is_canceled(token,
-                                                                                                             ptr)):
+                cancel = depend and self.task_que.is_canceled(token, depend)
+                if not cancel:
+                    cancel = self.task_que.is_canceled(token, ptr)
+                if not cancel:
                     await self.async_file.write(ptr, data)
 
                 self.a_command_done(token)
-                if do_ret:
+                if ret:
                     return
 
         if not self.commands:
             ensure_future(coro())
-        self.commands.append((ptr, prt_ptr, data, token))
+        # 按ptr排序
+        self.commands.append((ptr, depend, data, token))
         token.command_num += 1
 
     async def close(self):
@@ -110,16 +113,14 @@ class Engine(BasicEngine):
         token.command_num += 1
 
         async def travel(ptr: int):
-            init = self.task_que.get(token, ptr)
-            """:type : IndexNode"""
+            init = self.task_que.get(token, ptr)  # type: IndexNode
             if not init:
                 init = await self.async_file.exec(ptr, lambda f: IndexNode(file=f))
 
             index = bisect(init.keys, key)
             if init.keys[index - 1] == key:
                 ptr = self.task_que.get(token, init.nth_value_ads(index - 1)) or init.ptrs_value[index - 1]
-                val = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))
-                """:type : ValueNode"""
+                val = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))  # type: ValueNode
                 assert val.key == key
                 self.a_command_done(token)
                 return val.value
@@ -132,8 +133,7 @@ class Engine(BasicEngine):
         index = bisect(self.root.keys, key)
         if self.root.keys[index - 1] == key:
             ptr = self.root.ptrs_value[index - 1]
-            val = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))
-            """:type : ValueNode"""
+            val = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))  # type: ValueNode
             assert val.key == key
             self.a_command_done(token)
             return val.value
@@ -145,13 +145,14 @@ class Engine(BasicEngine):
         # 强一致性，非纯异步
         token = self.task_que.create(is_active=True)
         free_nodes = []
+        # command_map: {..., ptr: data or (data, depend)}
         command_map = {}
 
-        def replace(prt_ptr: int, address: int, ptr: int):
+        def replace(address: int, ptr: int, depend: int):
             self.file.seek(ptr)
             org_val = ValueNode(file=self.file)
 
-            # 最后写入一个新Val
+            # 文件最后写入一个新Val
             val = ValueNode(key, value)
             self.file.seek(self.async_file.size)
             self.async_file.size += val.size
@@ -165,25 +166,25 @@ class Engine(BasicEngine):
             # 同步
             self.task_que.set(token, address, org_val.ptr, val.ptr)
             # 命令
-            self.ensure_write(token, address, pack('Q', val.ptr), prt_ptr)
+            self.ensure_write(token, address, pack('Q', val.ptr), depend)
             # root可能改变，需更新
             self.time_travel(token, self.root)
 
-        # address为pointer的硬盘位置
-        def split(address: int, prt: IndexNode, child_index: int, child: IndexNode, grd_ptr=0):
+        # address为ptr的硬盘位置
+        def split(address: int, prt: IndexNode, child_index: int, child: IndexNode, depend: int):
             org_prt = prt.clone()
             org_child = child.clone()
 
             # 一半数据给sibling
-            mi_index = (len(child.keys) - 1) // 2 + 1
+            mi = (len(child.keys) - 1) // 2 + 1
             sibling = IndexNode(is_leaf=child.is_leaf)
-            sibling.keys = child.keys[mi_index:]
-            sibling.ptrs_value = child.ptrs_value[mi_index:]
-            del child.keys[mi_index:]
-            del child.ptrs_value[mi_index:]
+            sibling.keys = child.keys[mi:]
+            sibling.ptrs_value = child.ptrs_value[mi:]
+            del child.keys[mi:]
+            del child.ptrs_value[mi:]
             if not sibling.is_leaf:
-                sibling.ptrs_child = child.ptrs_child[mi_index:]
-                del child.ptrs_child[mi_index:]
+                sibling.ptrs_child = child.ptrs_child[mi:]
+                del child.ptrs_child[mi:]
 
             # parent需一个值
             prt.keys.insert(child_index, child.keys.pop())
@@ -201,7 +202,7 @@ class Engine(BasicEngine):
             prt.ptr = self.malloc(prt.size)
             # RAM数据更新完毕
 
-            # 释放
+            # 快速释放
             free_nodes.extend((org_prt, org_child))
             # 同步
             _ = None
@@ -210,27 +211,27 @@ class Engine(BasicEngine):
                                     (prt.ptr, _, prt), (child.ptr, _, child), (sibling.ptr, _, sibling)):
                 self.task_que.set(token, ptr, head, tail)
             # 命令
-            command_map.update({address: (pack('Q', prt.ptr), grd_ptr),
+            command_map.update({address: (pack('Q', prt.ptr), depend),
                                 prt.ptr: prt_b, child.ptr: child_b, sibling.ptr: sibling_b})
 
         cursor = self.root
         address = 1
+        depend = 0
         # root准满载的情况
         if len(cursor.keys) == 2 * MIN_DEGREE - 1:
             # 新建一个root
             root = IndexNode(is_leaf=False)
             root.ptrs_child.append(self.root.ptr)
-            split(address, root, 0, self.root)
+            split(address, root, 0, self.root, depend)
             self.root = cursor = root
 
-        prt_ptr = 9
         # 向下循环直到叶节点
         while not cursor.is_leaf:
             self.time_travel(token, cursor)
             index = bisect(cursor.keys, key)
             # 检查key是否已存在
             if cursor.keys[index - 1] == key:
-                return replace(prt_ptr, cursor.nth_value_ads(index - 1), cursor.ptr)
+                return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], depend)
 
             ptr = cursor.ptrs_child[index]
             child = self.task_que.get(token, ptr)
@@ -240,57 +241,57 @@ class Engine(BasicEngine):
             self.time_travel(token, child)
 
             if len(child.keys) == 2 * MIN_DEGREE - 1:
-                split(address, cursor, index, child, prt_ptr)
+                split(address, cursor, index, child, depend)
                 if cursor.keys[index] < key:
-                    # 路径转移至sibling
+                    # 路径转移至sibling，且必存在于task_que
                     index += 1
                     ptr = cursor.ptrs_child[index]
                     child = self.task_que.get(token, ptr, is_active=True)
 
             address = cursor.nth_child_ads(index)
-            prt_ptr = cursor.ptr
+            depend = cursor.ptr
             cursor = child
 
         # 到达叶节点
         index = bisect(cursor.keys, key)
-        # 检测key是否已存在
+        # 先检查是否为空root，再检查key是否已存在
         if cursor.keys and cursor.keys[index - 1] == key:
-            return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], prt_ptr)
+            return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], depend)
 
         org_cursor = cursor.clone()
         val = ValueNode(key, value)
-        val.ptr = self.malloc(len(bytes(val)))
-
+        val_b = bytes(val)
+        val.ptr = self.malloc(val.size)
         # 阻塞以确保ACID
         self.file.seek(val.ptr)
-        val.dump(self.file)
+        self.file.write(val_b)
 
-        cursor.keys.insert(index, key)
+        cursor.keys.insert(index, val.key)
         cursor.ptrs_value.insert(index, val.ptr)
         cursor_b = bytes(cursor)
         cursor.ptr = self.malloc(cursor.size)
         # RAM数据更新完毕
 
-        # 释放
+        # 快速释放
         free_nodes.append(org_cursor)
         # 同步
         _ = None
-        for ptr, head, tail in ((address, org_cursor.ptr, cursor.ptr), (org_cursor.ptr, org_cursor, _),
-                                (cursor.ptr, _, cursor)):
+        for ptr, head, tail in ((address, org_cursor.ptr, cursor.ptr),
+                                (org_cursor.ptr, org_cursor, _), (cursor.ptr, _, cursor)):
             self.task_que.set(token, ptr, head, tail)
         # 命令
-        command_map.update({address: (pack('Q', cursor.ptr), prt_ptr), cursor.ptr: cursor_b})
+        command_map.update({address: (pack('Q', cursor.ptr), depend), cursor.ptr: cursor_b})
+        # root可能改变，需更新
         self.time_travel(token, self.root)
 
         # 执行
-        for command in command_map:
-            ptr, params = command
-            if isinstance(params, tuple):
-                self.ensure_write(token, ptr, *params)
-            else:
-                self.ensure_write(token, ptr, params)
         for node in free_nodes:
             self.free(node.ptr, node.size)
+        for ptr, param in command_map.items():
+            if isinstance(param, tuple):
+                self.ensure_write(token, ptr, *param)
+            else:
+                self.ensure_write(token, ptr, param)
 
     def remove(self):
         pass
