@@ -39,7 +39,6 @@ class BasicEngine:
                 indicator = file.read(1)
                 if indicator == b'\x00':
                     Tinker(filename).repair()
-
                 ptr = unpack('Q', file.read(8))[0]
                 file.seek(ptr)
                 self.root = IndexNode(file=file)
@@ -149,12 +148,14 @@ class Engine(BasicEngine):
             self.file.seek(ptr)
             self.file.write(pack('B', 0))
 
+            # 释放
             token.free_param = (org_val.ptr, org_val.size)
             # 同步
             self.task_que.set(token, address, org_val.ptr, val.ptr)
+            # 命令
+            self.ensure_write(token, address, pack('Q', val.ptr), prt_ptr)
             # root可能改变
             self.time_travel(token, self.root)
-            self.ensure_write(token, address, pack('Q', val.ptr), prt_ptr)
 
         def split(prt_ptr: int, address: int, prt: IndexNode, child_index: int, child: IndexNode):
             org_prt = prt.clone()
@@ -187,7 +188,9 @@ class Engine(BasicEngine):
             prt.ptr = self.malloc(prt.size)
             # RAM数据更新完毕
 
+            # 释放
             # 同步
+            # 命令
 
     def remove(self):
         pass

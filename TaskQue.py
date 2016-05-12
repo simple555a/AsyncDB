@@ -55,8 +55,9 @@ class TaskQue:
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
             index = bisect_left(id_list, token.id)
-            if is_active:
-                index += 1
+
+            if is_active and id_list[index] == token.id:
+                return memo_list[index].tail
             if index < len(id_list):
                 return memo_list[index].head
             index -= 1
