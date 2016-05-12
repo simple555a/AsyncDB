@@ -100,8 +100,7 @@ class BasicEngine:
         self.file.seek(0)
         self.file.write(b'\x01')
         self.file.close()
-        for io in self.async_file.io_que:
-            io.close()
+        self.async_file.close()
 
 
 class Engine(BasicEngine):

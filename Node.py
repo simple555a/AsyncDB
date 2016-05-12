@@ -47,6 +47,9 @@ class IndexNode:
 
     def clone(self):
         result = IndexNode(is_leaf=self.is_leaf)
+        result.ptr = self.ptr
+        result.size = self.size
+
         result.keys = self.keys[:]
         result.ptrs_value = self.ptrs_value[:]
         if not result.is_leaf:

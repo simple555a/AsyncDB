@@ -18,6 +18,14 @@ async def insert_search_test():
     await engine.close()
 
 
+async def search_test():
+    engine = Engine(NAME)
+    for _ in range(3):
+        for i in range(NUM):
+            ensure_future(search(engine, i))
+    await engine.close()
+
+
 async def search(engine, key):
     value = await engine.get(key)
     if value != key:
@@ -32,4 +40,5 @@ if __name__ == '__main__':
         print('耗时：', int(time() - time_go), '秒')
 
 
-    main(insert_search_test)
+    # main(insert_search_test)
+    main(search_test)

@@ -31,9 +31,6 @@ class FastIO:
         self.cursor = self.file.tell()
         return result
 
-    def close(self):
-        self.file.close()
-
 
 class AsyncFile:
     def __init__(self, filename: str, io_num=8):
@@ -70,3 +67,7 @@ class AsyncFile:
             return result
 
         return await self.event_loop.run_in_executor(self.executor, async_call)
+
+    def close(self):
+        for io in self.io_que:
+            io.file.close()

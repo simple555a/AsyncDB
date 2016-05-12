@@ -14,6 +14,9 @@ class Task:
         self.free_param = None
         self.mod_ptrs = []
 
+    def __lt__(self, other):
+        return self.id < other.id
+
 
 class TaskQue:
     # 通过deque确保异步下的ACID
@@ -93,5 +96,6 @@ class TaskQue:
 
     async def close(self):
         # Queue有可能非空，进行非阻塞等待
+        await sleep(0.1)
         while self.que:
             await sleep(1)
