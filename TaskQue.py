@@ -70,7 +70,7 @@ class TaskQue:
             id_list, memo_list = self.virtual_map[ptr]
             if id_list[-1] != token.id:
                 return True
-            elif not memo_list[-1].tail:
+            elif memo_list[-1].tail is None:
                 return True
 
     def clean(self):

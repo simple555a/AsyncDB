@@ -288,10 +288,9 @@ class Engine(BasicEngine):
         for node in free_nodes:
             self.free(node.ptr, node.size)
         for ptr, param in command_map.items():
-            if isinstance(param, tuple):
-                self.ensure_write(token, ptr, *param)
-            else:
-                self.ensure_write(token, ptr, param)
+            if not isinstance(param, tuple):
+                param = (param, 0)
+            self.ensure_write(token, ptr, *param)
 
     def remove(self):
         pass
