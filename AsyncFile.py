@@ -31,6 +31,9 @@ class FastIO:
         self.cursor = self.file.tell()
         return result
 
+    def close(self):
+        self.file.close()
+
 
 class AsyncFile:
     def __init__(self, filename: str, io_num=8):
