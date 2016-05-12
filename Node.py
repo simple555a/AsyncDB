@@ -53,12 +53,12 @@ class IndexNode:
             result.ptrs_child = self.ptrs_child[:]
         return result
 
-    def nth_child(self, n: int) -> int:
+    def nth_child_ads(self, n: int) -> int:
         assert self.ptr > 0 and self.size > 0
         return self.ptr + self.size - (len(self.keys) + 1 - n) * 8
 
-    def nth_value(self, n: int) -> int:
-        tail = self.ptr + self.size if self.is_leaf else self.nth_child(0)
+    def nth_value_ads(self, n: int) -> int:
+        tail = self.ptr + self.size if self.is_leaf else self.nth_child_ads(0)
         return tail - (len(self.keys) - n) * 8
 
 
@@ -83,7 +83,7 @@ class ValueNode:
     def load(self, file: FileIO):
         self.ptr = file.tell()
         # indicator
-        file.read(1)
+        assert unpack('B', file.read(1))[0] == 1
         self.key, self.value = load(file)
         self.size = file.tell() - self.ptr
 

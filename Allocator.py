@@ -3,9 +3,9 @@ from collections import UserList, UserDict
 
 
 class SizeQue(UserList):
-    def __init__(self):
+    def __init__(self, max_len=1024):
         super().__init__()
-        self.max_len = 1024
+        self.max_len = max_len
 
     def append(self, size: int) -> int:
         insort(self.data, size)
