@@ -82,7 +82,6 @@ class ValueNode:
 
     def load(self, file: FileIO):
         self.ptr = file.tell()
-        # indicator
         assert unpack('B', file.read(1))[0] == 1
         self.key, self.value = load(file)
         self.size = file.tell() - self.ptr

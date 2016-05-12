@@ -10,6 +10,7 @@ class Task:
     def __init__(self, task_id: int, command_num=0):
         self.id = task_id
         self.command_num = command_num
+        # free_param: (ptr, size)
         self.free_param = None
         self.mod_ptrs = []
 
@@ -23,7 +24,7 @@ class TaskQue:
         self.virtual_map = {}
 
     def create(self, is_active: bool) -> Task:
-        # 3种情况需一个新Task：当前Query改动索引；Queue为空；上一个Query改动索引
+        # 当前Query改动索引；Queue为空；上一个Query改动索引
         if is_active or not self.que or self.que[-1].mod_ptrs:
             token = Task(self.next_id)
             self.next_id += 1
@@ -51,20 +52,20 @@ class TaskQue:
             token.mod_ptrs.append(ptr)
 
     def get(self, token: Task, ptr: int, is_active=False):
-        # 根据id查询一个映射
+        # 查询一个映射
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
             index = bisect_left(id_list, token.id)
-
             if is_active and id_list[index] == token.id:
                 return memo_list[index].tail
+
             if index < len(id_list):
                 return memo_list[index].head
             index -= 1
             if index >= 0:
                 return memo_list[index].tail
 
-    def is_canceled(self, token: Task, ptr: int):
+    def is_canceled(self, token: Task, ptr: int) -> bool:
         if ptr in self.virtual_map:
             id_list, _ = self.virtual_map[ptr]
             if id_list[-1] != token.id:
