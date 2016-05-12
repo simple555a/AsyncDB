@@ -10,6 +10,7 @@ class Task:
     def __init__(self, task_id: int, command_num=0):
         self.id = task_id
         self.command_num = command_num
+        self.free_param = None
         self.mod_ptrs = []
 
 

@@ -71,6 +71,8 @@ class BasicEngine:
     def a_command_done(self, token: Task):
         token.command_num -= 1
         if token.command_num == 0:
+            if token.free_param:
+                self.free(*token.free_param)
             self.task_que.clean()
 
     def ensure_write(self, token: Task, ptr: int, data: bytes, prt_ptr=0):
@@ -121,10 +123,10 @@ class Engine(BasicEngine):
         index = bisect(self.root.keys, key)
         if self.root.keys[index - 1] == key:
             ptr = self.root.ptrs_value[index - 1]
-            val_node = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))  # type: ValueNode
-            assert val_node.key == key
+            val = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))  # type: ValueNode
+            assert val.key == key
             self.a_command_done(token)
-            return val_node.value
+            return val.value
 
         elif not self.root.is_leaf:
             return await travel(self.root.ptrs_child[index])
@@ -132,25 +134,44 @@ class Engine(BasicEngine):
     def set(self, key, value):
         # 强一致性，非纯异步
         token = self.task_que.create(is_active=True)
+        snapshot_list = []
+        command_list = []
+        free_list = []
 
         def replace(prt_ptr: int, address: int, ptr: int):
-            pass
+            self.file.seek(ptr)
+            org_val = ValueNode(file=self.file)
 
-        def split_child(prt_ptr: int, address: int, prt: IndexNode, child_index: int, child: IndexNode):
+            # 在最后写入一个新Val
+            val = ValueNode(key, value)
+            self.file.seek(self.async_file.size)
+            val.dump(self.file)
+            self.async_file.size += val.size
+            # 被替换节点状态设为0
+            self.file.seek(ptr)
+            self.file.write(pack('B', 0))
+            token.free_param = (ptr, org_val.size)
+
+            # 同步
+            self.task_que.set(token, address, ptr, val.ptr)
+            # root可能改变
+            self.time_travel(token, self.root)
+            self.ensure_write(token, address, pack('Q', val.ptr), prt_ptr)
+
+        def split(prt_ptr: int, address: int, prt: IndexNode, child_index: int, child: IndexNode):
             org_prt = prt.clone()
             org_child = child.clone()
 
             # 一半数据给sibling
-            median_index = (len(child.keys) - 1) // 2 + 1
+            mi_index = (len(child.keys) - 1) // 2 + 1
             sibling = IndexNode(is_leaf=child.is_leaf)
-            sibling.keys = child.keys[median_index:]
-            sibling.ptrs_value = child.ptrs_value[median_index:]
-            del child.keys[median_index:]
-            del child.ptrs_value[median_index:]
-
+            sibling.keys = child.keys[mi_index:]
+            sibling.ptrs_value = child.ptrs_value[mi_index:]
+            del child.keys[mi_index:]
+            del child.ptrs_value[mi_index:]
             if not sibling.is_leaf:
-                sibling.ptrs_child = child.ptrs_child[median_index:]
-                del child.ptrs_child[median_index:]
+                sibling.ptrs_child = child.ptrs_child[mi_index:]
+                del child.ptrs_child[mi_index:]
 
             # parent需一个值
             prt.keys.add(child_index, child.keys.pop())
@@ -166,6 +187,12 @@ class Engine(BasicEngine):
             prt.ptrs_child.add(child_index + 1, sibling.ptr)
             prt_b = bytes(prt)
             prt.ptr = self.malloc(prt.size)
+
+            free_list.extend(((org_prt.ptr, org_prt.size), (org_child.ptr, org_child.size)))
+            # 同步
+            self.task_que.set(token)
+            self.task_que.set(token)
+            self.task_que.set(token)
 
     def pop(self):
         pass
