@@ -150,8 +150,8 @@ class Engine(BasicEngine):
             # 文件最后写入一个新Val
             val = ValueNode(key, value)
             self.file.seek(self.async_file.size)
-            self.async_file.size += val.size
             val.dump(self.file)
+            self.async_file.size += val.size
             # 被替换节点状态设为0
             self.file.seek(ptr)
             self.file.write(pack('B', 0))
@@ -164,6 +164,7 @@ class Engine(BasicEngine):
             self.ensure_write(token, address, pack('Q', val.ptr), depend)
             # root可能改变，需更新
             self.time_travel(token, self.root)
+            self.root = self.root.clone()
 
         # address为ptr的硬盘位置
         def split(address: int, prt: IndexNode, child_index: int, child: IndexNode, depend: int):

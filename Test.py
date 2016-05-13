@@ -4,7 +4,7 @@ from time import time
 
 from Engine import Engine
 
-NUM = 10000
+NUM = 100
 NAME = 'Test.db'
 
 
