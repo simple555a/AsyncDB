@@ -59,7 +59,7 @@ class AsyncFile:
         await self.event_loop.run_in_executor(self.executor, async_call)
 
     async def exec(self, offset: int, action: Callable[[FileIO], Any]):
-        # read-only
+        # read only
         def async_call():
             io = self.io_que.pop()
             result = io.exec(offset, action)

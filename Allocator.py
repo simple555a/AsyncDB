@@ -65,8 +65,9 @@ class Allocator:
         tail_ptr = ptr + size
         while tail_ptr in self.ptr_map:
             tail_size = self.ptr_map.pop(tail_ptr)
-            self.size_map.discard(tail_size)
-            if tail_size not in self.size_map:
+            self.size_map[tail_size].remove(tail_ptr)
+            if not self.size_map[tail_size]:
+                del self.size_map[tail_size]
                 del self.size_que[self.size_que.find(tail_size)]
             tail_ptr += tail_size
         size = tail_ptr - ptr

@@ -32,7 +32,7 @@ async def set_get_replace_t():
         print('set', i)
     for i in range(NUM // 10):
         engine.set(i, 0)
-        print('set', i, 'to', 0)
+        print('change', i, 'to', 0)
     for i in range(NUM):
         ensure_future(get(engine, i))
     await engine.close()
