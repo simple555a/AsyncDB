@@ -62,18 +62,17 @@ class TaskQue:
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
             index = bisect(id_list, token.id)
+            if index - 1 >= 0:
+                return memo_list[index - 1].tail
             if index < len(id_list):
                 return memo_list[index].head
-            index -= 1
-            if index >= 0:
-                return memo_list[index].tail
 
     def is_canceled(self, token: Task, ptr: int) -> bool:
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
             if id_list[-1] != token.id:
                 return True
-            elif not memo_list[-1].tail:
+            elif memo_list[-1].tail is None:
                 return True
 
     def clean(self):

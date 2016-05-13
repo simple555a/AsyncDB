@@ -4,7 +4,7 @@ from time import time
 
 from Engine import Engine
 
-NUM = 1000
+NUM = 200
 NAME = 'Test.db'
 
 
@@ -40,6 +40,7 @@ async def set_get_replace_t():
 
 async def get(engine, key):
     value = await engine.get(key)
+    print('get', value)
     if value != key:
         print('Output:', value, 'Expect:', key)
 
