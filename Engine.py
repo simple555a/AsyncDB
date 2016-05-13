@@ -23,14 +23,15 @@ class BasicEngine:
     # 处理基础事务
     def __init__(self, filename: str):
         self.allocator = Allocator()
-        self.commands = SortedList()
+        self.command_que = SortedList()
         self.task_que = TaskQue()
+        self.on_write = False
 
         if not isfile(filename):
             with open(filename, 'wb') as file:
                 # 0未关闭，1反之
                 file.write(b'\x00')
-                # 随后为8字节的root地址，初始值为9
+                # 随后8字节root地址，初始值为9
                 file.write(pack('Q', 9))
                 self.root = IndexNode(is_leaf=True)
                 self.root.dump(file)
@@ -57,64 +58,58 @@ class BasicEngine:
 
     def time_travel(self, token: Task, node: IndexNode):
         for i in range(len(node.ptrs_value)):
-            ptr = self.task_que.get(token, node.nth_value_ads(i), is_active=True)
+            ptr = self.task_que.get(token, node.nth_value_ads(i))
             if ptr:
                 node.ptrs_value[i] = ptr
         if not node.is_leaf:
             for i in range(len(node.ptrs_child)):
-                ptr = self.task_que.get(token, node.nth_child_ads(i), is_active=True)
+                ptr = self.task_que.get(token, node.nth_child_ads(i))
                 if ptr:
                     node.ptrs_child[i] = ptr
 
     def a_command_done(self, token: Task):
         token.command_num -= 1
         if token.command_num == 0:
-            if token.free_param:
+            if token.is_active and token.free_param:
                 self.free(*token.free_param)
             self.task_que.clean()
 
     def ensure_write(self, token: Task, ptr: int, data: bytes, depend=0):
         async def coro():
-            while self.commands:
-                ptr, depend, data, token = self.commands.pop(0)
-                ret = (len(self.commands) == 0)
-
+            while self.command_que:
+                ptr, token, data, depend = self.command_que.pop(0)
                 cancel = depend and self.task_que.is_canceled(token, depend)
                 if not cancel:
                     cancel = self.task_que.is_canceled(token, ptr)
                 if not cancel:
                     await self.async_file.write(ptr, data)
-
                 self.a_command_done(token)
-                if ret:
-                    return
+            self.on_write = False
 
-        if not self.commands:
+        if not self.on_write:
+            self.on_write = True
             ensure_future(coro())
-        # 按ptr排序
-        self.commands.append((ptr, depend, data, token))
+        # 按ptr和token.id排序
+        self.command_que.append((ptr, token, data, depend))
         token.command_num += 1
 
     async def close(self):
         await self.task_que.close()
         self.file.seek(0)
-        self.file.write(b'\x01')
+        self.file.write(pack('B', 1))
         self.file.close()
         self.async_file.close()
 
 
 class Engine(BasicEngine):
-    def __init__(self, filename: str):
-        super().__init__(filename)
-
     async def get(self, key):
         token = self.task_que.create(is_active=False)
         token.command_num += 1
 
         async def travel(ptr: int):
-            init = self.task_que.get(token, ptr)  # type: IndexNode
+            init = self.task_que.get(token, ptr)
             if not init:
-                init = await self.async_file.exec(ptr, lambda f: IndexNode(file=f))
+                init = await self.async_file.exec(ptr, lambda f: IndexNode(file=f))  # type: IndexNode
 
             index = bisect(init.keys, key)
             if init.keys[index - 1] == key:
@@ -144,7 +139,7 @@ class Engine(BasicEngine):
         # 强一致性，非纯异步
         token = self.task_que.create(is_active=True)
         free_nodes = []
-        # command_map: {..., ptr: data or (data, depend)}
+        # command_map: {..., ptr: data OR (data, depend)}
         command_map = {}
 
         def replace(address: int, ptr: int, depend: int):
@@ -216,9 +211,9 @@ class Engine(BasicEngine):
         cursor = self.root
         address = 1
         depend = 0
-        # root准满载的情况
+        # root准满载
         if len(cursor.keys) == 2 * MIN_DEGREE - 1:
-            # 新建一个root
+            # 新建root
             root = IndexNode(is_leaf=False)
             root.ptrs_child.append(self.root.ptr)
             split(address, root, 0, self.root, depend)
@@ -245,7 +240,7 @@ class Engine(BasicEngine):
                     # 路径转移至sibling，且必存在于task_que
                     index += 1
                     ptr = cursor.ptrs_child[index]
-                    child = self.task_que.get(token, ptr, is_active=True)
+                    child = self.task_que.get(token, ptr)
 
             address = cursor.nth_child_ads(index)
             depend = cursor.ptr

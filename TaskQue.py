@@ -70,7 +70,7 @@ class TaskQue:
     def is_canceled(self, token: Task, ptr: int) -> bool:
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
-            if id_list[-1] != token.id:
+            if id_list[-1] > token.id:
                 return True
             elif memo_list[-1].tail is None:
                 return True
