@@ -4,41 +4,54 @@ from time import time
 
 from Engine import Engine
 
-NUM = 100
+NUM = 1000
 NAME = 'Test.db'
 
 
-async def insert_search_test():
+async def set_get_t():
     engine = Engine(NAME)
     for i in range(NUM):
         engine.set(i, i)
         print('set', i)
     for i in range(NUM):
-        ensure_future(search(engine, i))
+        ensure_future(get(engine, i))
     await engine.close()
 
 
-async def search_test():
+async def get_t():
     engine = Engine(NAME)
-    for _ in range(3):
-        for i in range(NUM):
-            ensure_future(search(engine, i))
+    for i in range(NUM):
+        ensure_future(get(engine, i))
     await engine.close()
 
 
-async def search(engine, key):
+async def set_get_replace_t():
+    engine = Engine(NAME)
+    for i in range(NUM):
+        engine.set(i, i)
+        print('set', i)
+    for i in range(NUM // 10):
+        engine.set(i, 0)
+        print('set', i, 'to', 0)
+    for i in range(NUM):
+        ensure_future(get(engine, i))
+    await engine.close()
+
+
+async def get(engine, key):
     value = await engine.get(key)
     if value != key:
         print('Output:', value, 'Expect:', key)
 
 
 if __name__ == '__main__':
-    def main(action):
+    def main(t):
         time_go = time()
-        get_event_loop().run_until_complete(action())
-        print('文件大小：', getsize(NAME))
+        get_event_loop().run_until_complete(t())
+        print('大小：', getsize(NAME))
         print('耗时：', int(time() - time_go), '秒')
 
 
-    # main(insert_search_test)
-    main(search_test)
+    main(set_get_t)
+    # main(get_t)
+    # main(set_get_replace_t)

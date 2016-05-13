@@ -1,25 +1,28 @@
 from asyncio import sleep
-from bisect import bisect_left
+from bisect import bisect
 from collections import deque, namedtuple
 
 Memo = namedtuple('Memo', 'head tail')
 
 
 class Task:
-    # 每一个Query都有对应Task，用于查询和清理映射
-    def __init__(self, task_id: int, command_num=0):
+    # Query有对应的Task，用于查询和清理映射
+    def __init__(self, task_id: int, is_active: bool, command_num=0):
         self.id = task_id
+        self.is_active = is_active
         self.command_num = command_num
-        # free_param: (ptr, size)
-        self.free_param = None
-        self.mod_ptrs = []
 
-    def __lt__(self, other):
+        if self.is_active:
+            # free_param: (ptr, size)
+            self.free_param = None
+            self.ptrs = []
+
+    def __lt__(self, other: 'Task'):
         return self.id < other.id
 
 
 class TaskQue:
-    # 通过deque确保异步下的ACID
+    # 通过que确保异步下的ACID
     def __init__(self):
         self.next_id = 0
         self.que = deque()
@@ -28,8 +31,8 @@ class TaskQue:
 
     def create(self, is_active: bool) -> Task:
         # 当前Query改动索引；Queue为空；上一个Query改动索引
-        if is_active or not self.que or self.que[-1].mod_ptrs:
-            token = Task(self.next_id)
+        if is_active or not self.que or self.que[-1].is_active:
+            token = Task(self.next_id, is_active)
             self.next_id += 1
             self.que.append(token)
         else:
@@ -37,7 +40,7 @@ class TaskQue:
         return token
 
     def set(self, token: Task, ptr: int, head, tail):
-        # 建立一个映射
+        # 建立映射
         memo = Memo(head, tail)
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
@@ -52,16 +55,13 @@ class TaskQue:
         else:
             id_list.append(token.id)
             memo_list.append(memo)
-            token.mod_ptrs.append(ptr)
+            token.ptrs.append(ptr)
 
-    def get(self, token: Task, ptr: int, is_active=False):
-        # 查询一个映射
+    def get(self, token: Task, ptr: int):
+        # 查询映射
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
-            index = bisect_left(id_list, token.id)
-            if is_active and 0 <= index < len(id_list) and id_list[index] == token.id:
-                return memo_list[index].tail
-
+            index = bisect(id_list, token.id)
             if index < len(id_list):
                 return memo_list[index].head
             index -= 1
@@ -73,7 +73,7 @@ class TaskQue:
             id_list, memo_list = self.virtual_map[ptr]
             if id_list[-1] != token.id:
                 return True
-            elif memo_list[-1].tail is None:
+            elif not memo_list[-1].tail:
                 return True
 
     def clean(self):
@@ -83,19 +83,20 @@ class TaskQue:
                 self.que.appendleft(head)
                 break
             else:
-                # 清理映射
-                for ptr in head.mod_ptrs:
-                    id_list, memo_list = self.virtual_map[ptr]
-                    del id_list[0]
-                    del memo_list[0]
-                    if not id_list:
-                        del self.virtual_map[ptr]
+                if head.is_active:
+                    # 清理映射
+                    for ptr in head.ptrs:
+                        id_list, memo_list = self.virtual_map[ptr]
+                        del id_list[0]
+                        del memo_list[0]
+                        if not id_list:
+                            del self.virtual_map[ptr]
         else:
             # 重计数
             self.next_id = 0
 
     async def close(self):
         # Queue有可能非空，进行非阻塞等待
-        await sleep(0.1)
+        await sleep(1)
         while self.que:
             await sleep(1)
