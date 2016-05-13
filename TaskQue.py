@@ -91,7 +91,7 @@ class TaskQue:
                         if not id_list:
                             del self.virtual_map[ptr]
         else:
-            # 重计数
+            # 重置
             self.next_id = 0
 
     async def close(self):

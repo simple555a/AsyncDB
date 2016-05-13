@@ -77,7 +77,7 @@ class BasicEngine:
     def ensure_write(self, token: Task, ptr: int, data: bytes, depend=0):
         async def coro():
             while self.command_que:
-                ptr, token, data, depend = self.command_que.pop(0)
+                ptr, token, depend, data = self.command_que.pop(0)
                 canceled = depend and self.task_que.is_canceled(token, depend)
                 if not canceled:
                     canceled = self.task_que.is_canceled(token, ptr)
@@ -90,7 +90,7 @@ class BasicEngine:
             self.on_write = True
             ensure_future(coro())
         # 按ptr和token.id排序
-        self.command_que.append((ptr, token, data, depend))
+        self.command_que.append((ptr, token, depend, data))
         token.command_num += 1
 
     async def close(self):
