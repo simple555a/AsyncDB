@@ -25,7 +25,7 @@ async def get_t():
     await engine.close()
 
 
-async def set_get_replace_t():
+async def set_replace_get_t():
     engine = Engine(NAME)
     for i in range(NUM):
         engine.set(i, i)
@@ -55,4 +55,4 @@ if __name__ == '__main__':
 
     main(set_get_t)
     # main(get_t)
-    # main(set_get_replace_t)
+    # main(set_replace_get_t)

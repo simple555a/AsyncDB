@@ -31,7 +31,7 @@ class BasicEngine:
             with open(filename, 'wb') as file:
                 # 0未关闭，1反之
                 file.write(b'\x00')
-                # 随后8字节root地址，初始值为9
+                # 随后8字节为root地址，初始值9
                 file.write(pack('Q', 9))
                 self.root = IndexNode(is_leaf=True)
                 self.root.dump(file)
@@ -78,10 +78,10 @@ class BasicEngine:
         async def coro():
             while self.command_que:
                 ptr, token, data, depend = self.command_que.pop(0)
-                cancel = depend and self.task_que.is_canceled(token, depend)
-                if not cancel:
-                    cancel = self.task_que.is_canceled(token, ptr)
-                if not cancel:
+                canceled = depend and self.task_que.is_canceled(token, depend)
+                if not canceled:
+                    canceled = self.task_que.is_canceled(token, ptr)
+                if not canceled:
                     await self.async_file.write(ptr, data)
                 self.a_command_done(token)
             self.on_write = False
@@ -256,7 +256,7 @@ class Engine(BasicEngine):
         val = ValueNode(key, value)
         val_b = bytes(val)
         val.ptr = self.malloc(val.size)
-        # 阻塞以确保ACID
+        # 确保ACID
         self.file.seek(val.ptr)
         self.file.write(val_b)
 
