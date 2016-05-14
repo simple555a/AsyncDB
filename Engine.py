@@ -57,15 +57,18 @@ class BasicEngine:
         self.allocator.free(ptr, size)
 
     def time_travel(self, token: Task, node: IndexNode):
+        address = node.nth_value_ads(0)
         for i in range(len(node.ptrs_value)):
-            ptr = self.task_que.get(token, node.nth_value_ads(i), reject_small=True)
+            ptr = self.task_que.get(token, address, accept_small=False)
             if ptr:
                 node.ptrs_value[i] = ptr
+            address += 8
         if not node.is_leaf:
             for i in range(len(node.ptrs_child)):
-                ptr = self.task_que.get(token, node.nth_child_ads(i), reject_small=True)
+                ptr = self.task_que.get(token, address, accept_small=False)
                 if ptr:
                     node.ptrs_child[i] = ptr
+                address += 8
 
     def a_command_done(self, token: Task):
         token.command_num -= 1
@@ -77,7 +80,7 @@ class BasicEngine:
     def ensure_write(self, token: Task, ptr: int, data: bytes, depend=0):
         async def coro():
             while self.command_que:
-                ptr, token, depend, data = self.command_que.pop(0)
+                ptr, token, data, depend = self.command_que.pop(0)
                 canceled = depend and self.task_que.is_canceled(token, depend)
                 if not canceled:
                     canceled = self.task_que.is_canceled(token, ptr)
@@ -90,7 +93,7 @@ class BasicEngine:
             self.on_write = True
             ensure_future(coro())
         # 按ptr和token.id排序
-        self.command_que.append((ptr, token, depend, data))
+        self.command_que.append((ptr, token, data, depend))
         token.command_num += 1
 
     async def close(self):
@@ -109,13 +112,13 @@ class Engine(BasicEngine):
         async def travel(ptr: int):
             init = self.task_que.get(token, ptr)
             if not init:
-                init = await self.async_file.exec(ptr, lambda f: IndexNode(file=f))  # type: IndexNode
+                init = await self.async_file.exec(ptr, lambda f: IndexNode(file=f))
 
             index = bisect(init.keys, key)
             if init.keys[index - 1] == key:
-                ptr = self.task_que.get(token, init.nth_value_ads(index - 1), reject_small=True) or init.ptrs_value[
+                ptr = self.task_que.get(token, init.nth_value_ads(index - 1), accept_small=False) or init.ptrs_value[
                     index - 1]
-                val = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))  # type: ValueNode
+                val = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))
                 assert val.key == key
                 self.a_command_done(token)
                 return val.value
@@ -128,7 +131,7 @@ class Engine(BasicEngine):
         index = bisect(self.root.keys, key)
         if self.root.keys[index - 1] == key:
             ptr = self.root.ptrs_value[index - 1]
-            val = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))  # type: ValueNode
+            val = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))
             assert val.key == key
             self.a_command_done(token)
             return val.value
