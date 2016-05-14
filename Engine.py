@@ -201,7 +201,7 @@ class Engine(BasicEngine):
             prt.ptr = self.malloc(prt.size)
             # RAM数据更新完毕
 
-            # 快速释放
+            # 释放
             free_nodes.extend((org_prt, org_child))
             # 同步
             _ = None
@@ -253,7 +253,7 @@ class Engine(BasicEngine):
 
         # 到达叶节点
         index = bisect(cursor.keys, key)
-        # 先检查是否为空root，再检查key是否已存在
+        # 有可能是空root
         if cursor.keys and cursor.keys[index - 1] == key:
             return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], depend)
 
@@ -271,7 +271,7 @@ class Engine(BasicEngine):
         cursor.ptr = self.malloc(cursor.size)
         # RAM数据更新完毕
 
-        # 快速释放
+        # 释放
         free_nodes.append(org_cursor)
         # 同步
         _ = None
@@ -287,9 +287,8 @@ class Engine(BasicEngine):
         for node in free_nodes:
             self.free(node.ptr, node.size)
         for ptr, param in command_map.items():
-            if not isinstance(param, tuple):
-                param = (param, 0)
-            self.ensure_write(token, ptr, *param)
+            data, depend = param if isinstance(param, tuple) else (param, 0)
+            self.ensure_write(token, ptr, data, depend)
         self.root = self.root.clone()
 
     def remove(self):
