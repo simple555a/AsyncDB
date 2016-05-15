@@ -20,7 +20,7 @@ MIN_DEGREE = 128
 
 
 class BasicEngine:
-    # 处理基础事务
+    # 基础事务
     def __init__(self, filename: str):
         self.allocator = Allocator()
         self.command_que = SortedList()
@@ -59,13 +59,13 @@ class BasicEngine:
     def time_travel(self, token: Task, node: IndexNode):
         address = node.nth_value_ads(0)
         for i in range(len(node.ptrs_value)):
-            ptr = self.task_que.get(token, address, accept_small=False)
+            ptr = self.task_que.get(token, address, node.ptr)
             if ptr:
                 node.ptrs_value[i] = ptr
             address += 8
         if not node.is_leaf:
             for i in range(len(node.ptrs_child)):
-                ptr = self.task_que.get(token, address, accept_small=False)
+                ptr = self.task_que.get(token, address, node.ptr)
                 if ptr:
                     node.ptrs_child[i] = ptr
                 address += 8
@@ -105,27 +105,29 @@ class BasicEngine:
 
 
 class Engine(BasicEngine):
+    # B-Tree相关
     async def get(self, key):
         token = self.task_que.create(is_active=False)
         token.command_num += 1
 
         async def travel(ptr: int):
-            init = self.task_que.get(token, ptr)
+            init = self.task_que.get(token, ptr, is_active=False)
             if not init:
                 init = await self.async_file.exec(ptr, lambda f: IndexNode(file=f))
 
             index = bisect(init.keys, key)
             if init.keys[index - 1] == key:
-                ptr = self.task_que.get(token, init.nth_value_ads(index - 1), accept_small=False) or init.ptrs_value[
-                    index - 1]
+                ptr = self.task_que.get(token, init.nth_value_ads(index - 1), init.ptr) or init.ptrs_value[index - 1]
                 val = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))
                 assert val.key == key
                 self.a_command_done(token)
                 return val.value
 
             elif not init.is_leaf:
-                ptr = self.task_que.get(token, init.nth_child_ads(index)) or init.ptrs_child[index]
+                ptr = self.task_que.get(token, init.nth_child_ads(index), init.ptr) or init.ptrs_child[index]
                 return await travel(ptr)
+            else:
+                return self.a_command_done(token)
 
         # root ptrs实时更新
         index = bisect(self.root.keys, key)
@@ -138,6 +140,8 @@ class Engine(BasicEngine):
 
         elif not self.root.is_leaf:
             return await travel(self.root.ptrs_child[index])
+        else:
+            return self.a_command_done(token)
 
     def set(self, key, value):
         # 强一致性，非纯异步
@@ -145,6 +149,15 @@ class Engine(BasicEngine):
         free_nodes = []
         # command_map: {..., ptr: data OR (data, depend)}
         command_map = {}
+
+        def complete():
+            for node in free_nodes:
+                self.free(node.ptr, node.size)
+            for ptr, param in command_map.items():
+                data, depend = param if isinstance(param, tuple) else (param, 0)
+                self.ensure_write(token, ptr, data, depend)
+            self.time_travel(token, self.root)
+            self.root = self.root.clone()
 
         def replace(address: int, ptr: int, depend: int):
             self.file.seek(ptr)
@@ -165,9 +178,7 @@ class Engine(BasicEngine):
             self.task_que.set(token, address, org_val.ptr, val.ptr)
             # 命令
             self.ensure_write(token, address, pack('Q', val.ptr), depend)
-            # root可能改变，需更新
-            self.time_travel(token, self.root)
-            self.root = self.root.clone()
+            complete()
 
         # address为ptr的硬盘位置
         def split(address: int, prt: IndexNode, child_index: int, child: IndexNode, depend: int):
@@ -201,7 +212,7 @@ class Engine(BasicEngine):
             prt.ptr = self.malloc(prt.size)
             # RAM数据更新完毕
 
-            # 快速释放
+            # 释放
             free_nodes.extend((org_prt, org_child))
             # 同步
             _ = None
@@ -230,7 +241,7 @@ class Engine(BasicEngine):
             index = bisect(cursor.keys, key)
             # 检查key是否已存在
             if cursor.keys[index - 1] == key:
-                return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], depend)
+                return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], cursor.ptr)
 
             ptr = cursor.ptrs_child[index]
             child = self.task_que.get(token, ptr)
@@ -253,9 +264,9 @@ class Engine(BasicEngine):
 
         # 到达叶节点
         index = bisect(cursor.keys, key)
-        # 先检查是否为空root，再检查key是否已存在
+        # 有可能是空root
         if cursor.keys and cursor.keys[index - 1] == key:
-            return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], depend)
+            return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], cursor.ptr)
 
         org_cursor = cursor.clone()
         val = ValueNode(key, value)
@@ -271,7 +282,7 @@ class Engine(BasicEngine):
         cursor.ptr = self.malloc(cursor.size)
         # RAM数据更新完毕
 
-        # 快速释放
+        # 释放
         free_nodes.append(org_cursor)
         # 同步
         _ = None
@@ -280,20 +291,35 @@ class Engine(BasicEngine):
             self.task_que.set(token, ptr, head, tail)
         # 命令
         command_map.update({address: (pack('Q', cursor.ptr), depend), cursor.ptr: cursor_b})
-        # root可能改变，需更新
-        self.time_travel(token, self.root)
+        complete()
 
-        # 执行
-        for node in free_nodes:
-            self.free(node.ptr, node.size)
-        for ptr, param in command_map.items():
-            if not isinstance(param, tuple):
-                param = (param, 0)
-            self.ensure_write(token, ptr, *param)
-        self.root = self.root.clone()
+    def remove(self, key):
+        token = self.task_que.create(is_active=True)
+        free_nodes = []
+        command_map = {}
 
-    def remove(self):
-        pass
+        def indicate(ptr: int):
+            self.file.seek(ptr)
+            self.file.write(pack('B', 0))
 
-    def items(self):
+        def travel(address: int, init: IndexNode, key, depend: int):
+            index = bisect(init.keys, key) - 1
+
+            # key已定位
+            if index >= 0 and init.keys[index] == key:
+                # 位于叶节点，直接删除
+                if init.is_leaf:
+                    ptr = init.ptrs_value[index]
+                    self.file.seek(ptr)
+                    org_val = ValueNode(file=self.file)
+                    org_init = init.clone()
+
+                else:
+                    pass
+
+            # 向下递归
+            elif not init.is_leaf:
+                pass
+
+    async def items(self):
         pass

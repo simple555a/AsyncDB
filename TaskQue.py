@@ -13,9 +13,9 @@ class Task:
         self.command_num = command_num
 
         if self.is_active:
+            self.ptrs = []
             # free_param: (ptr, size)
             self.free_param = None
-            self.ptrs = []
 
     def __lt__(self, other: 'Task'):
         return self.id < other.id
@@ -30,7 +30,7 @@ class TaskQue:
         self.virtual_map = {}
 
     def create(self, is_active: bool) -> Task:
-        # 当前Query改动索引；Queue为空；上一个Query改动索引
+        # Query改动索引；Queue为空；上一个Query改动索引
         if is_active or not self.que or self.que[-1].is_active:
             token = Task(self.next_id, is_active)
             self.next_id += 1
@@ -40,6 +40,9 @@ class TaskQue:
         return token
 
     def set(self, token: Task, ptr: int, head, tail):
+        if ptr == 0:
+            return
+
         # 建立映射
         memo = Memo(head, tail)
         if ptr in self.virtual_map:
@@ -57,24 +60,38 @@ class TaskQue:
             memo_list.append(memo)
             token.ptrs.append(ptr)
 
-    def get(self, token: Task, ptr: int, accept_small=True):
+    def get(self, token: Task, ptr: int, depend=0, is_active=True):
+        def get_id():
+            if depend in self.virtual_map:
+                id_list, _ = self.virtual_map[depend]
+                index = bisect(id_list, token.id)
+                if index - 1 >= 0:
+                    return id_list[index - 1]
+                elif index < len(id_list):
+                    return id_list[index]
+            else:
+                return 0
+
         # 查询映射
         if ptr in self.virtual_map:
+            depend_id = get_id()
             id_list, memo_list = self.virtual_map[ptr]
             index = bisect(id_list, token.id)
-            if index - 1 >= 0:
-                if not accept_small and id_list[index - 1] < token.id:
-                    return
-                return memo_list[index - 1].tail
-            if index < len(id_list):
-                return memo_list[index].head
+
+            result = None
+            if index - 1 >= 0 and depend_id <= id_list[index - 1]:
+                result = memo_list[index - 1].tail
+            elif index < len(id_list) and depend_id <= id_list[index]:
+                result = memo_list[index].head
+
+            if is_active and not (isinstance(result, int) or result is None):
+                result = result.clone()
+            return result
 
     def is_canceled(self, token: Task, ptr: int) -> bool:
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
-            if id_list[-1] > token.id:
-                return True
-            elif memo_list[-1].tail is None:
+            if id_list[-1] > token.id or not memo_list[-1].tail:
                 return True
 
     def clean(self):
