@@ -57,16 +57,26 @@ class TaskQue:
             memo_list.append(memo)
             token.ptrs.append(ptr)
 
-    def get(self, token: Task, ptr: int, accept_small=True):
+    def get(self, token: Task, ptr: int, depend=0):
+        def get_id():
+            if depend in self.virtual_map:
+                id_list, _ = self.virtual_map[depend]
+                index = bisect(id_list, token.id)
+                if index - 1 >= 0:
+                    return id_list[index - 1]
+                if index < len(id_list):
+                    return id_list[index]
+            else:
+                return 0
+
         # 查询映射
+        depend_id = get_id()
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
             index = bisect(id_list, token.id)
-            if index - 1 >= 0:
-                if not accept_small and id_list[index - 1] < token.id:
-                    return
+            if index - 1 >= 0 and depend_id <= id_list[index - 1]:
                 return memo_list[index - 1].tail
-            if index < len(id_list):
+            if index < len(id_list) and depend_id <= id_list[index]:
                 return memo_list[index].head
 
     def is_canceled(self, token: Task, ptr: int) -> bool:

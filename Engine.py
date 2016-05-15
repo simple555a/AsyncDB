@@ -16,7 +16,7 @@ class SortedList(UserList):
         insort(self.data, item)
 
 
-MIN_DEGREE = 128
+MIN_DEGREE = 100
 
 
 class BasicEngine:
@@ -59,13 +59,13 @@ class BasicEngine:
     def time_travel(self, token: Task, node: IndexNode):
         address = node.nth_value_ads(0)
         for i in range(len(node.ptrs_value)):
-            ptr = self.task_que.get(token, address, False)
+            ptr = self.task_que.get(token, address, node.ptr)
             if ptr:
                 node.ptrs_value[i] = ptr
             address += 8
         if not node.is_leaf:
             for i in range(len(node.ptrs_child)):
-                ptr = self.task_que.get(token, address, False)
+                ptr = self.task_que.get(token, address, node.ptr)
                 if ptr:
                     node.ptrs_child[i] = ptr
                 address += 8
@@ -116,14 +116,14 @@ class Engine(BasicEngine):
 
             index = bisect(init.keys, key)
             if init.keys[index - 1] == key:
-                ptr = self.task_que.get(token, init.nth_value_ads(index - 1), False) or init.ptrs_value[index - 1]
+                ptr = self.task_que.get(token, init.nth_value_ads(index - 1), init.ptr) or init.ptrs_value[index - 1]
                 val = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))
                 assert val.key == key
                 self.a_command_done(token)
                 return val.value
 
             elif not init.is_leaf:
-                ptr = self.task_que.get(token, init.nth_child_ads(index)) or init.ptrs_child[index]
+                ptr = self.task_que.get(token, init.nth_child_ads(index), init.ptr) or init.ptrs_child[index]
                 return await travel(ptr)
 
         # root ptrs实时更新
