@@ -73,6 +73,7 @@ class TaskQue:
                 return 0
 
         # 查询映射
+        depend_id = get_id()
         if ptr in self.virtual_map:
             depend_id = get_id()
             id_list, memo_list = self.virtual_map[ptr]
