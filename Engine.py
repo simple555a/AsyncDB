@@ -110,7 +110,7 @@ class Engine(BasicEngine):
         token.command_num += 1
 
         async def travel(ptr: int):
-            init = self.task_que.get(token, ptr)
+            init = self.task_que.get(token, ptr, is_active=False)
             if not init:
                 init = await self.async_file.exec(ptr, lambda f: IndexNode(file=f))
 
@@ -164,7 +164,7 @@ class Engine(BasicEngine):
             self.task_que.set(token, address, org_val.ptr, val.ptr)
             # 命令
             self.ensure_write(token, address, pack('Q', val.ptr), depend)
-            # root可能改变，需更新
+            # root需更新
             self.time_travel(token, self.root)
             self.root = self.root.clone()
 
@@ -279,7 +279,7 @@ class Engine(BasicEngine):
             self.task_que.set(token, ptr, head, tail)
         # 命令
         command_map.update({address: (pack('Q', cursor.ptr), depend), cursor.ptr: cursor_b})
-        # root可能改变，需更新
+        # root需更新
         self.time_travel(token, self.root)
 
         # 执行

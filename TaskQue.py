@@ -60,7 +60,7 @@ class TaskQue:
             memo_list.append(memo)
             token.ptrs.append(ptr)
 
-    def get(self, token: Task, ptr: int, depend=0):
+    def get(self, token: Task, ptr: int, depend=0, is_active=True):
         def get_id():
             if depend in self.virtual_map:
                 id_list, _ = self.virtual_map[depend]
@@ -77,12 +77,14 @@ class TaskQue:
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
             index = bisect(id_list, token.id)
-            result = None
             if index - 1 >= 0 and depend_id <= id_list[index - 1]:
                 result = memo_list[index - 1].tail
-            if index < len(id_list) and depend_id <= id_list[index]:
+            elif index < len(id_list) and depend_id <= id_list[index]:
                 result = memo_list[index].head
-            if result and not isinstance(result, int):
+            else:
+                result = None
+
+            if is_active and not (result is None or isinstance(result, int)):
                 result = result.clone()
             return result
 
