@@ -13,9 +13,9 @@ class Task:
         self.command_num = command_num
 
         if self.is_active:
+            self.ptrs = []
             # free_param: (ptr, size)
             self.free_param = None
-            self.ptrs = []
 
     def __lt__(self, other: 'Task'):
         return self.id < other.id
@@ -30,7 +30,7 @@ class TaskQue:
         self.virtual_map = {}
 
     def create(self, is_active: bool) -> Task:
-        # 当前Query改动索引；Queue为空；上一个Query改动索引
+        # Query改动索引；Queue为空；上一个Query改动索引
         if is_active or not self.que or self.que[-1].is_active:
             token = Task(self.next_id, is_active)
             self.next_id += 1
@@ -72,9 +72,7 @@ class TaskQue:
     def is_canceled(self, token: Task, ptr: int) -> bool:
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
-            if id_list[-1] > token.id:
-                return True
-            elif memo_list[-1].tail is None:
+            if id_list[-1] > token.id or not memo_list[-1].tail:
                 return True
 
     def clean(self):
