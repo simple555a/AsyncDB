@@ -16,7 +16,7 @@ class SortedList(UserList):
         insort(self.data, item)
 
 
-MIN_DEGREE = 100
+MIN_DEGREE = 128
 
 
 class BasicEngine:

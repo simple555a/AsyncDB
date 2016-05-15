@@ -40,6 +40,9 @@ class TaskQue:
         return token
 
     def set(self, token: Task, ptr: int, head, tail):
+        if ptr == 0:
+            return
+
         # 建立映射
         memo = Memo(head, tail)
         if ptr in self.virtual_map:
@@ -74,10 +77,14 @@ class TaskQue:
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
             index = bisect(id_list, token.id)
+            result = None
             if index - 1 >= 0 and depend_id <= id_list[index - 1]:
-                return memo_list[index - 1].tail
+                result = memo_list[index - 1].tail
             if index < len(id_list) and depend_id <= id_list[index]:
-                return memo_list[index].head
+                result = memo_list[index].head
+            if result and not isinstance(result, int):
+                result = result.clone()
+            return result
 
     def is_canceled(self, token: Task, ptr: int) -> bool:
         if ptr in self.virtual_map:
