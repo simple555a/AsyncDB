@@ -1,4 +1,4 @@
-from asyncio import ensure_future, get_event_loop
+from asyncio import ensure_future, get_event_loop, sleep
 from os.path import getsize
 from time import time
 
@@ -45,6 +45,20 @@ async def get(engine, key):
         print('Output:', value, 'Expect:', key)
 
 
+async def con_curr_t():
+    engine = Engine(NAME)
+    for i in (1, 2, 3, 4, 7, 8, 9, 10, 12, 13):
+        engine.set(i, i)
+    for i in (2, 3, 5, 6, 11):
+        ensure_future(get(engine, i))
+    await sleep(0)
+    for i in (5, 6, 11):
+        engine.set(i, i)
+    for i in (2, 3, 5, 6, 11):
+        ensure_future(get(engine, i))
+    await engine.close()
+
+
 if __name__ == '__main__':
     def main(t):
         time_go = time()
@@ -53,6 +67,7 @@ if __name__ == '__main__':
         print('耗时：', int(time() - time_go), '秒')
 
 
-    main(set_get_t)
+    # main(set_get_t)
     # main(get_t)
     # main(set_replace_get_t)
+    main(con_curr_t)

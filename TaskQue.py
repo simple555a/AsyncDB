@@ -67,7 +67,7 @@ class TaskQue:
                 index = bisect(id_list, token.id)
                 if index - 1 >= 0:
                     return id_list[index - 1]
-                if index < len(id_list):
+                elif index < len(id_list):
                     return id_list[index]
             else:
                 return 0
@@ -77,14 +77,14 @@ class TaskQue:
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
             index = bisect(id_list, token.id)
+
+            result = None
             if index - 1 >= 0 and depend_id <= id_list[index - 1]:
                 result = memo_list[index - 1].tail
             elif index < len(id_list) and depend_id <= id_list[index]:
                 result = memo_list[index].head
-            else:
-                result = None
 
-            if is_active and not (result is None or isinstance(result, int)):
+            if is_active and not (isinstance(result, int) or result is None):
                 result = result.clone()
             return result
 
