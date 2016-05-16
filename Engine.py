@@ -77,6 +77,15 @@ class BasicEngine:
                 self.free(*token.free_param)
             self.task_que.clean()
 
+    def do_prev(self, token: Task, free_nodes, command_map):
+        for node in free_nodes:
+            self.free(node.ptr, node.size)
+        for ptr, param in command_map.items():
+            data, depend = param if isinstance(param, tuple) else (param, 0)
+            self.ensure_write(token, ptr, data, depend)
+        self.time_travel(token, self.root)
+        self.root = self.root.clone()
+
     def ensure_write(self, token: Task, ptr: int, data: bytes, depend=0):
         async def coro():
             while self.command_que:
@@ -150,35 +159,27 @@ class Engine(BasicEngine):
         # command_map: {..., ptr: data OR (data, depend)}
         command_map = {}
 
-        def complete():
-            for node in free_nodes:
-                self.free(node.ptr, node.size)
-            for ptr, param in command_map.items():
-                data, depend = param if isinstance(param, tuple) else (param, 0)
-                self.ensure_write(token, ptr, data, depend)
-            self.time_travel(token, self.root)
-            self.root = self.root.clone()
-
         def replace(address: int, ptr: int, depend: int):
             self.file.seek(ptr)
             org_val = ValueNode(file=self.file)
+            if org_val.value != value:
+                # 文件最后写入一个新Val
+                val = ValueNode(key, value)
+                self.file.seek(self.async_file.size)
+                val.dump(self.file)
+                self.async_file.size += val.size
 
-            # 文件最后写入一个新Val
-            val = ValueNode(key, value)
-            self.file.seek(self.async_file.size)
-            val.dump(self.file)
-            self.async_file.size += val.size
-            # 被替换节点状态设为0
-            self.file.seek(ptr)
-            self.file.write(pack('B', 0))
+                # 被替换节点状态设为0
+                self.file.seek(org_val.ptr)
+                self.file.write(pack('B', 0))
 
-            # 释放
-            token.free_param = (org_val.ptr, org_val.size)
-            # 同步
-            self.task_que.set(token, address, org_val.ptr, val.ptr)
-            # 命令
-            self.ensure_write(token, address, pack('Q', val.ptr), depend)
-            complete()
+                # 释放
+                token.free_param = (org_val.ptr, org_val.size)
+                # 同步
+                self.task_que.set(token, address, org_val.ptr, val.ptr)
+                # 命令
+                self.ensure_write(token, address, pack('Q', val.ptr), depend)
+            self.do_prev(token, free_nodes, command_map)
 
         # address为ptr的硬盘位置
         def split(address: int, prt: IndexNode, child_index: int, child: IndexNode, depend: int):
@@ -291,31 +292,33 @@ class Engine(BasicEngine):
             self.task_que.set(token, ptr, head, tail)
         # 命令
         command_map.update({address: (pack('Q', cursor.ptr), depend), cursor.ptr: cursor_b})
-        complete()
+        self.do_prev(token, free_nodes, command_map)
 
     def remove(self, key):
         token = self.task_que.create(is_active=True)
         free_nodes = []
         command_map = {}
 
-        def indicate(ptr: int):
-            self.file.seek(ptr)
-            self.file.write(pack('B', 0))
-
         def travel(address: int, init: IndexNode, key, depend: int):
-            index = bisect(init.keys, key) - 1
+            # 算法过度复杂，拆成小函数
+            def key_in_leaf():
+                pass
 
+            # kii = Key In Inner
+            def kii_left():
+                pass
+
+            def kill_right():
+                pass
+
+            index = bisect(init.keys, key) - 1
             # key已定位
             if index >= 0 and init.keys[index] == key:
                 # 位于叶节点，直接删除
                 if init.is_leaf:
-                    ptr = init.ptrs_value[index]
-                    self.file.seek(ptr)
-                    org_val = ValueNode(file=self.file)
-                    org_init = init.clone()
-
+                    key_in_leaf()
                 else:
-                    pass
+                    left = None
 
             # 向下递归
             elif not init.is_leaf:
