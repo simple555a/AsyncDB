@@ -39,6 +39,7 @@ class BasicEngine:
             with open(filename, 'rb') as file:
                 if file.read(1) == b'\x00':
                     Tinker(filename).repair()
+
                 ptr = unpack('Q', file.read(8))[0]
                 file.seek(ptr)
                 self.root = IndexNode(file=file)
@@ -77,7 +78,7 @@ class BasicEngine:
                 self.free(*token.free_param)
             self.task_que.clean()
 
-    def do_prev(self, token: Task, free_nodes, command_map):
+    def do_cum(self, token: Task, free_nodes, command_map):
         for node in free_nodes:
             self.free(node.ptr, node.size)
         for ptr, param in command_map.items():
@@ -179,11 +180,11 @@ class Engine(BasicEngine):
                 self.task_que.set(token, address, org_val.ptr, val.ptr)
                 # 命令
                 self.ensure_write(token, address, pack('Q', val.ptr), depend)
-            self.do_prev(token, free_nodes, command_map)
+            self.do_cum(token, free_nodes, command_map)
 
         # address为ptr的硬盘位置
-        def split(address: int, prt: IndexNode, child_index: int, child: IndexNode, depend: int):
-            org_prt = prt.clone()
+        def split(address: int, par: IndexNode, child_index: int, child: IndexNode, depend: int):
+            org_par = par.clone()
             org_child = child.clone()
 
             # 一半数据给sibling
@@ -198,8 +199,8 @@ class Engine(BasicEngine):
                 del child.ptrs_child[mi:]
 
             # parent需一个值
-            prt.keys.insert(child_index, child.keys.pop())
-            prt.ptrs_value.insert(child_index, child.ptrs_value.pop())
+            par.keys.insert(child_index, child.keys.pop())
+            par.ptrs_value.insert(child_index, child.ptrs_value.pop())
 
             # 分配空间
             child_b = bytes(child)
@@ -207,23 +208,23 @@ class Engine(BasicEngine):
             child.ptr = self.malloc(child.size)
             sibling.ptr = self.malloc(sibling.size)
 
-            prt.ptrs_child[child_index] = child.ptr
-            prt.ptrs_child.insert(child_index + 1, sibling.ptr)
-            prt_b = bytes(prt)
-            prt.ptr = self.malloc(prt.size)
+            par.ptrs_child[child_index] = child.ptr
+            par.ptrs_child.insert(child_index + 1, sibling.ptr)
+            par_b = bytes(par)
+            par.ptr = self.malloc(par.size)
             # RAM数据更新完毕
 
             # 释放
-            free_nodes.extend((org_prt, org_child))
+            free_nodes.extend((org_par, org_child))
             # 同步
             _ = None
-            for ptr, head, tail in ((address, org_prt.ptr, prt.ptr),
-                                    (org_prt.ptr, org_prt, _), (org_child.ptr, org_child, _),
-                                    (prt.ptr, _, prt), (child.ptr, _, child), (sibling.ptr, _, sibling)):
+            for ptr, head, tail in ((address, org_par.ptr, par.ptr),
+                                    (org_par.ptr, org_par, _), (org_child.ptr, org_child, _),
+                                    (par.ptr, _, par), (child.ptr, _, child), (sibling.ptr, _, sibling)):
                 self.task_que.set(token, ptr, head, tail)
             # 命令
-            command_map.update({address: (pack('Q', prt.ptr), depend),
-                                prt.ptr: prt_b, child.ptr: child_b, sibling.ptr: sibling_b})
+            command_map.update({address: (pack('Q', par.ptr), depend),
+                                par.ptr: par_b, child.ptr: child_b, sibling.ptr: sibling_b})
 
         cursor = self.root
         address = 1
@@ -273,7 +274,7 @@ class Engine(BasicEngine):
         val = ValueNode(key, value)
         val_b = bytes(val)
         val.ptr = self.malloc(val.size)
-        # 确保ACID
+        # 阻塞写入，确保ACID
         self.file.seek(val.ptr)
         self.file.write(val_b)
 
@@ -292,7 +293,7 @@ class Engine(BasicEngine):
             self.task_que.set(token, ptr, head, tail)
         # 命令
         command_map.update({address: (pack('Q', cursor.ptr), depend), cursor.ptr: cursor_b})
-        self.do_prev(token, free_nodes, command_map)
+        self.do_cum(token, free_nodes, command_map)
 
     def remove(self, key):
         token = self.task_que.create(is_active=True)
@@ -300,15 +301,33 @@ class Engine(BasicEngine):
         command_map = {}
 
         def travel(address: int, init: IndexNode, key, depend: int):
-            # 算法过度复杂，拆成小函数
-            def key_in_leaf():
+            # 算法非常复杂，各case有相应小函数，缩写命名
+            # k  = key          kii = key in inner
+            # lb = left big     rb  = right big
+            # td = travel down  mg  = merge
+
+            def k_leaf():
                 pass
 
-            # kii = Key In Inner
-            def kii_left():
+            def kii_lb():
                 pass
 
-            def kill_right():
+            def kii_rb():
+                pass
+
+            def kii_mg():
+                pass
+
+            def td_lb():
+                pass
+
+            def td_rb():
+                pass
+
+            def td_mg_l():
+                pass
+
+            def td_mg_r():
                 pass
 
             index = bisect(init.keys, key) - 1
@@ -316,9 +335,7 @@ class Engine(BasicEngine):
             if index >= 0 and init.keys[index] == key:
                 # 位于叶节点，直接删除
                 if init.is_leaf:
-                    key_in_leaf()
-                else:
-                    left = None
+                    k_leaf()
 
             # 向下递归
             elif not init.is_leaf:
