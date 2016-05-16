@@ -91,10 +91,10 @@ class BasicEngine:
         async def coro():
             while self.command_que:
                 ptr, token, data, depend = self.command_que.pop(0)
-                canceled = depend and self.task_que.is_canceled(token, depend)
-                if not canceled:
-                    canceled = self.task_que.is_canceled(token, ptr)
-                if not canceled:
+                cancel = depend and self.task_que.is_canceled(token, depend)
+                if not cancel:
+                    cancel = self.task_que.is_canceled(token, ptr)
+                if not cancel:
                     await self.async_file.write(ptr, data)
                 self.a_command_done(token)
             self.on_write = False
@@ -169,7 +169,6 @@ class Engine(BasicEngine):
                 self.file.seek(self.async_file.size)
                 val.dump(self.file)
                 self.async_file.size += val.size
-
                 # 被替换节点状态设为0
                 self.file.seek(org_val.ptr)
                 self.file.write(pack('B', 0))
@@ -266,7 +265,7 @@ class Engine(BasicEngine):
 
         # 到达叶节点
         index = bisect(cursor.keys, key)
-        # 有可能是空root
+        # 考虑空root的情况
         if cursor.keys and cursor.keys[index - 1] == key:
             return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], cursor.ptr)
 
@@ -300,11 +299,22 @@ class Engine(BasicEngine):
         free_nodes = []
         command_map = {}
 
+        def fetch(ptr: int) -> IndexNode:
+            result = self.task_que.get(token, ptr)
+            if not result:
+                self.file.seek(ptr)
+                result = IndexNode(file=self.file)
+            return result
+
         def travel(address: int, init: IndexNode, key, depend: int):
-            # 算法非常复杂，各case有相应小函数，缩写命名
-            # k  = key          kii = key in inner
-            # lb = left big     rb  = right big
-            # td = travel down  mg  = merge
+            # 算法非常复杂，各case用小函数处理
+            # k  = key       kii = key in inner
+            # lb = left big  rb  = right big
+            # mg = merge     td  = travel down
+
+            # 提前声明变量以使用闭包
+            left_child = right_child = None
+            left_sibling = cursor = right_sibling = None
 
             def k_leaf():
                 pass
@@ -333,13 +343,53 @@ class Engine(BasicEngine):
             index = bisect(init.keys, key) - 1
             # key已定位
             if index >= 0 and init.keys[index] == key:
-                # 位于叶节点，直接删除
+                # 位于叶节点
                 if init.is_leaf:
-                    k_leaf()
+                    return k_leaf()
+                # 位于内部节点
+                else:
+                    left_ptr = init.ptrs_child[index]
+                    left_child = fetch(left_ptr)
+                    right_ptr = init.ptrs_child[index + 1]
+                    right_child = fetch(right_ptr)
 
-            # 向下递归
+                    # 左子节点 >= t
+                    if len(left_child.keys) >= MIN_DEGREE:
+                        return kii_lb()
+                    # 右子节点 >= t
+                    elif len(right_child.keys) >= MIN_DEGREE:
+                        return kii_rb()
+                    # 左右子节点均 < t
+                    else:
+                        return kii_mg()
+
+            # 向下寻找
             elif not init.is_leaf:
-                pass
+                index += 1
+                cursor = fetch(init.ptrs_child[index])
+
+                # 递归目标 < t
+                if len(cursor.keys) < MIN_DEGREE:
+                    left_sibling = fetch(init.ptrs_child[index - 1]) if index - 1 >= 0 else None
+                    right_sibling = fetch(init.ptrs_child[index + 1]) if index + 1 < len(init.ptrs_child) else None
+
+                    # 左兄弟 >= t
+                    if left_sibling and len(left_sibling.keys) >= MIN_DEGREE:
+                        return td_lb()
+                    # 右兄弟 >= t
+                    elif right_sibling and len(right_sibling.keys) >= MIN_DEGREE:
+                        return td_rb()
+                    # 左右兄弟均 < t
+                    else:
+                        if left_sibling:
+                            return td_mg_l()
+                        elif right_sibling:
+                            return td_mg_r()
+                else:
+                    return travel(init.nth_child_ads(index), cursor, key, init.ptr)
+
+        travel(1, self.root, key, 0)
+        self.do_cum(token, free_nodes, command_map)
 
     async def items(self):
         pass
