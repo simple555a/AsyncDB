@@ -407,7 +407,6 @@ class Engine(BasicEngine):
         def merge_left(address: int, par: IndexNode, val_index: int,
                        left_child: IndexNode, cursor: IndexNode, depend: int):
             org_par = par.clone()
-            org_left = left_child.clone()
             org_cursor = cursor.clone()
 
             # 内存
@@ -430,13 +429,13 @@ class Engine(BasicEngine):
             # 更新完毕
 
             # 释放
-            free_nodes.extend((org_par, org_left, org_cursor))
+            free_nodes.extend((org_par, org_cursor, left_child))
             # 同步
             _ = None
             for ptr, head, tail in ((address, org_par.ptr, par.ptr),
                                     (org_par.ptr, org_par, _), (par.ptr, _, par),
-                                    (org_left.ptr, org_left, _),
-                                    (org_cursor.ptr, org_cursor, _), (cursor.ptr, _, cursor)):
+                                    (org_cursor.ptr, org_cursor, _), (cursor.ptr, _, cursor),
+                                    (left_child.ptr, left_child, _)):
                 self.task_que.set(token, ptr, head, tail)
             # 命令
             command_map.update({address: (pack('Q', par.ptr), depend), par.ptr: par_b, cursor.ptr: cursor_b})
@@ -445,7 +444,6 @@ class Engine(BasicEngine):
                         cursor: IndexNode, right_child: IndexNode, depend: int):
             org_par = par.clone()
             org_cursor = cursor.clone()
-            org_right = right_child.clone()
 
             # 内存
             val_key = par.keys.pop(val_index)
@@ -467,13 +465,13 @@ class Engine(BasicEngine):
             # 更新完毕
 
             # 释放
-            free_nodes.extend((org_par, org_cursor, org_right))
+            free_nodes.extend((org_par, org_cursor, right_child))
             # 同步
             _ = None
             for ptr, head, tail in ((address, org_par.ptr, par.ptr),
                                     (org_par.ptr, org_par, _), (par.ptr, _, par),
                                     (org_cursor.ptr, org_cursor, _), (cursor.ptr, _, cursor),
-                                    (org_right.ptr, org_right, _)):
+                                    (right_child.ptr, right_child, _)):
                 self.task_que.set(token, ptr, head, tail)
             # 命令
             command_map.update({address: (pack('Q', par.ptr), depend), par.ptr: par_b, cursor.ptr: cursor_b})
@@ -540,22 +538,25 @@ class Engine(BasicEngine):
                     if index - 1 >= 0:
                         left_ptr = init.ptrs_child[index - 1]
                         left_sibling = fetch(left_ptr)
-                        # 左兄妹 >= t
+                        # 左sibling >= t
                         if len(left_sibling.keys) >= MIN_DEGREE:
                             rotate_left(address, init, index - 1, left_sibling, cursor, depend)
+                            return travel(init.nth_child_ads(index), cursor, key, init.ptr)
+
                     if index + 1 < len(init.ptrs_child):
                         right_ptr = init.ptrs_child[index + 1]
                         right_sibling = fetch(right_ptr)
-                        # 右兄妹 >= t
+                        # 右sibling >= t
                         if len(right_sibling.keys) >= MIN_DEGREE:
-                            rotate_right(address, init, index + 1, cursor, right_sibling, depend)
+                            rotate_right(address, init, index, cursor, right_sibling, depend)
+                            return travel(init.nth_child_ads(index), cursor, key, init.ptr)
 
-                    # 无兄妹 >= t
+                    # 无sibling >= t
                     if left_sibling:
-                        merge_left(address, init, index - 1, left_sibling, cursor, depend)
+                        index -= 1
+                        merge_left(address, init, index, left_sibling, cursor, depend)
                     else:
-                        merge_right(address, init, index + 1, cursor, right_sibling, depend)
-
+                        merge_right(address, init, index, cursor, right_sibling, depend)
                     if init is self.root and len(self.root.keys) == 0:
                         self.root = cursor
                 return travel(init.nth_child_ads(index), cursor, key, init.ptr)
@@ -563,5 +564,5 @@ class Engine(BasicEngine):
         travel(1, self.root, key, 0)
         self.do_cum(token, free_nodes, command_map)
 
-    async def items(self):
+    async def items(self, item_from=None, item_to=None, max_len=1024):
         pass
