@@ -313,10 +313,8 @@ class Engine(BasicEngine):
             token.free_param = (val.ptr, val.size)
 
         def travel(address: int, init: IndexNode, key, depend: int):
-            # 算法非常复杂，各case用单独函数处理
-            # kil = key in leaf  kii = key in inner
-            # lb  = left big     rb  = right big
-            # mg  = merge        td  = travel down
+            def rotate():
+                pass
 
             # 声明变量以使用闭包
             index = bisect(init.keys, key) - 1
@@ -324,6 +322,11 @@ class Engine(BasicEngine):
             left_sibling = right_sibling = cursor = None
             org_init = init.clone()
             org_left = org_right = org_cursor = None
+
+            # 算法非常复杂，各case用单独函数处理
+            # kil = key in leaf  kii = key in inner
+            # lb  = left big     rb  = right big
+            # mg  = merge        td  = travel down
 
             def kil():
                 org_init = init.clone()
@@ -466,15 +469,57 @@ class Engine(BasicEngine):
                 return travel(init.nth_child_ads(index), left_child, key, init.ptr)
 
             def td_lb():
-                pass
+                # 内存
+                cursor.keys.insert(0, init.keys.pop(index - 1))
+                cursor.ptrs_value.insert(0, init.ptrs_value.pop(index - 1))
+                init.keys.insert(index - 1, left_sibling.keys.pop())
+                init.ptrs_value.insert(index - 1, left_sibling.ptrs_value.pop())
+                if not cursor.is_leaf:
+                    cursor.ptrs_child.insert(0, left_sibling.ptrs_child.pop())
+
+                # 空间
+                left_sibling_b = bytes(left_sibling)
+                left_sibling.ptr = self.malloc(left_sibling.size)
+                cursor_b = bytes(cursor)
+                cursor.ptr = self.malloc(cursor.size)
+
+                init.ptrs_child[index - 1] = left_sibling.ptr
+                init.ptrs_child[index] = cursor.ptr
+                init_b = bytes(init)
+                init.ptr = self.malloc(init.size)
+                # 更新完毕
+
+                # 释放
+                free_nodes.extend((org_init, org_left, org_cursor))
+                # 同步
+                _ = None
+                # 命令
 
             def td_rb():
+                # 内存
+                # 空间
+                # 更新完毕
+                # 释放
+                # 同步
+                # 命令
                 pass
 
             def td_mg_l():
+                # 内存
+                # 空间
+                # 更新完毕
+                # 释放
+                # 同步
+                # 命令
                 pass
 
             def td_mg_r():
+                # 内存
+                # 空间
+                # 更新完毕
+                # 释放
+                # 同步
+                # 命令
                 pass
 
             # key已定位
