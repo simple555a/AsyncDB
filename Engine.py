@@ -305,7 +305,7 @@ class Engine(BasicEngine):
             if not result:
                 self.file.seek(ptr)
                 result = IndexNode(file=self.file)
-            return result
+            return self.time_travel(token, result)
 
         def indicate(val: ValueNode):
             self.file.seek(val.ptr)
@@ -374,7 +374,7 @@ class Engine(BasicEngine):
                 init.ptrs_child[index + 1] = right_child.ptr
                 init_b = bytes(init)
                 init.ptr = self.malloc(init.size)
-                # 内存更新完毕
+                # 更新完毕
 
                 # 释放
                 free_nodes.extend((org_init, org_left, org_right))
@@ -392,7 +392,50 @@ class Engine(BasicEngine):
                 return travel(init.nth_child_ads(index + 1), right_child, key, init.ptr)
 
             def kii_rb():
-                pass
+                org_init = init.clone()
+                org_left = left_child.clone()
+                org_right = right_child.clone()
+
+                # 内存
+                first_key = right_child.keys.pop(0)
+                first_ptr = right_child.ptrs_value.pop(0)
+                val_ptr = init.ptrs_value[index]
+
+                init.keys[index] = first_key
+                init.ptrs_value[index] = first_ptr
+                left_child.keys.append(key)
+                left_child.ptrs_value.append(val_ptr)
+
+                if not right_child.is_leaf:
+                    first_child_ptr = right_child.ptrs_child.pop(0)
+                    left_child.ptrs_child.append(first_child_ptr)
+
+                # 空间
+                left_child_b = bytes(left_child)
+                left_child.ptr = self.malloc(left_child.size)
+                right_child_b = bytes(right_child)
+                right_child.ptr = self.malloc(right_child.size)
+
+                init.ptrs_child[index] = left_child.ptr
+                init.ptrs_child[index + 1] = right_child.ptr
+                init_b = bytes(init)
+                init.ptr = self.malloc(init.size)
+                # 更新完毕
+
+                # 释放
+                free_nodes.extend((org_init, org_left, org_right))
+                # 同步
+                _ = None
+                for ptr, head, tail in ((address, org_init.ptr, init.ptr),
+                                        (org_init.ptr, org_init, _), (init.ptr, _, init),
+                                        (org_left.ptr, org_left, _), (left_child.ptr, _, left_child),
+                                        (org_right.ptr, org_right, _), (right_child.ptr, _, right_child)):
+                    self.task_que.set(token, ptr, head, tail)
+
+                # 命令
+                command_map.update({address: (pack('Q', init.ptr), depend),
+                                    init.ptr: init_b, left_child.ptr: left_child_b, right_child.ptr: right_child_b})
+                return travel(init.nth_child_ads(index), left_child, key, init.ptr)
 
             def kii_mg():
                 pass
