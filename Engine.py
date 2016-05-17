@@ -300,6 +300,11 @@ class Engine(BasicEngine):
         free_nodes = []
         command_map = {}
 
+        def indicate(val: ValueNode):
+            self.file.seek(val.ptr)
+            self.file.write(pack('B', 0))
+            token.free_param = (val.ptr, val.size)
+
         def fetch(ptr: int) -> IndexNode:
             result = self.task_que.get(token, ptr)
             if not result:
@@ -307,23 +312,179 @@ class Engine(BasicEngine):
                 result = IndexNode(file=self.file)
             return self.time_travel(token, result)
 
-        def indicate(val: ValueNode):
-            self.file.seek(val.ptr)
-            self.file.write(pack('B', 0))
-            token.free_param = (val.ptr, val.size)
+        def rotate_left(address: int, par: IndexNode, val_index: int,
+                        left_child: IndexNode, right_child: IndexNode, depend: int):
+            org_par = par.clone()
+            org_left = left_child.clone()
+            org_right = right_child.clone()
+
+            # 内存
+            last_val_key = left_child.keys.pop()
+            last_val_ptr = left_child.ptrs_value.pop()
+            val_key = par.keys[val_index]
+            val_ptr = par.ptrs_value[val_index]
+
+            par.keys[val_index] = last_val_key
+            par.ptrs_value[val_index] = last_val_ptr
+            right_child.keys.insert(0, val_key)
+            right_child.ptrs_value.index(0, val_ptr)
+
+            if not left_child.is_leaf:
+                last_ptr_child = left_child.ptrs_child.pop()
+                right_child.ptrs_child.insert(0, last_ptr_child)
+
+            # 空间
+            left_b = bytes(left_child)
+            left_child.ptr = self.malloc(left_child.size)
+            right_b = bytes(right_child)
+            right_child.ptr = self.malloc(right_child.size)
+
+            par.ptrs_child[val_index] = left_child.ptr
+            par.ptrs_child[val_index + 1] = right_child.ptr
+            par_b = bytes(par)
+            par.ptr = self.malloc(par.size)
+            # 更新完毕
+
+            # 释放
+            free_nodes.extend((org_par, org_left, org_right))
+            # 同步
+            _ = None
+            for ptr, head, tail in ((address, org_par.ptr, par.ptr),
+                                    (org_par.ptr, org_par, _), (par.ptr, _, par),
+                                    (org_left.ptr, org_left, _), (left_child.ptr, _, left_child),
+                                    (org_right.ptr, org_right, _), (right_child.ptr, _, right_child)):
+                self.task_que.set(token, ptr, head, tail)
+            # 命令
+            command_map.update({address: (pack('Q', par.ptr), depend),
+                                par.ptr: par_b, left_child.ptr: left_b, right_child.ptr: right_b})
+
+        def rotate_right(address: int, par: IndexNode, val_index: int,
+                         left_child: IndexNode, right_child: IndexNode, depend: int):
+            org_par = par.clone()
+            org_left = left_child.clone()
+            org_right = right_child.clone()
+
+            # 内存
+            first_val_key = right_child.keys.pop(0)
+            first_val_ptr = right_child.ptrs_value.pop(0)
+            val_key = par.keys[val_index]
+            val_ptr = par.ptrs_value[val_index]
+
+            par.keys[val_index] = first_val_key
+            par.ptrs_value[val_index] = first_val_ptr
+            left_child.keys.append(val_key)
+            left_child.ptrs_value.append(val_ptr)
+
+            if not right_child.is_leaf:
+                first_ptr_child = right_child.ptrs_child.pop(0)
+                left_child.ptrs_child.append(first_ptr_child)
+
+            # 空间
+            left_b = bytes(left_child)
+            left_child.ptr = self.malloc(left_child.size)
+            right_b = bytes(right_child)
+            right_child.ptr = self.malloc(right_child.size)
+
+            par.ptrs_child[val_index] = left_child.ptr
+            par.ptrs_child[val_index + 1] = right_child.ptr
+            par_b = bytes(par)
+            par.ptr = self.malloc(par.size)
+            # 更新完毕
+
+            # 释放
+            free_nodes.extend((org_par, org_left, org_right))
+            # 同步
+            _ = None
+            for ptr, head, tail in ((address, org_par.ptr, par.ptr),
+                                    (org_par.ptr, org_par, _), (par.ptr, _, par),
+                                    (org_left.ptr, org_left, _), (left_child.ptr, _, left_child),
+                                    (org_right.ptr, org_right, _), (right_child.ptr, _, right_child)):
+                self.task_que.set(token, ptr, head, tail)
+            # 命令
+            command_map.update({address: (pack('Q', par.ptr), depend),
+                                par.ptr: par_b, left_child.ptr: left_b, right_child.ptr: right_b})
+
+        def merge_left(address: int, par: IndexNode, val_index: int,
+                       left_child: IndexNode, cursor: IndexNode, depend: int):
+            org_par = par.clone()
+            org_left = left_child.clone()
+            org_cursor = cursor.clone()
+
+            # 内存
+            val_key = par.keys.pop(val_index)
+            val_ptr = par.ptrs_value.pop(val_index)
+            del par.ptrs_child[val_index]
+
+            cursor.keys = [*left_child.keys, val_key, *cursor.keys]
+            cursor.ptrs_value = [*left_child.ptrs_value, val_ptr, *cursor.ptrs_value]
+            if not left_child.is_leaf:
+                cursor.ptrs_child = [*left_child.ptrs_child, *cursor.ptrs_child]
+
+            # 空间
+            cursor_b = bytes(cursor)
+            cursor.ptr = self.malloc(cursor.size)
+
+            par.ptrs_child[val_index] = cursor.ptr
+            par_b = bytes(par)
+            par.ptr = self.malloc(par.size)
+            # 更新完毕
+
+            # 释放
+            free_nodes.extend((org_par, org_left, org_cursor))
+            # 同步
+            _ = None
+            for ptr, head, tail in ((address, org_par.ptr, par.ptr),
+                                    (org_par.ptr, org_par, _), (par.ptr, _, par),
+                                    (org_left.ptr, org_left, _),
+                                    (org_cursor.ptr, org_cursor, _), (cursor.ptr, _, cursor)):
+                self.task_que.set(token, ptr, head, tail)
+            # 命令
+            command_map.update({address: (pack('Q', par.ptr), depend), par.ptr: par_b, cursor.ptr: cursor_b})
+
+        def merge_right(address: int, par: IndexNode, val_index: int,
+                        cursor: IndexNode, right_child: IndexNode, depend: int):
+            org_par = par.clone()
+            org_cursor = cursor.clone()
+            org_right = right_child.clone()
+
+            # 内存
+            val_key = par.keys.pop(val_index)
+            val_ptr = par.ptrs_value.pop(val_index)
+            del par.ptrs_child[val_index + 1]
+
+            cursor.keys.extend((val_key, *right_child.keys))
+            cursor.ptrs_value.extend((val_ptr, *right_child.ptrs_value))
+            if not cursor.is_leaf:
+                cursor.ptrs_child.extend(right_child.ptrs_child)
+
+            # 空间
+            cursor_b = bytes(cursor)
+            cursor.ptr = self.malloc(cursor.size)
+
+            par.ptrs_child[val_index] = cursor.ptr
+            par_b = bytes(par)
+            par.ptr = self.malloc(par.size)
+            # 更新完毕
+
+            # 释放
+            free_nodes.extend((org_par, org_cursor, org_right))
+            # 同步
+            _ = None
+            for ptr, head, tail in ((address, org_par.ptr, par.ptr),
+                                    (org_par.ptr, org_par, _), (par.ptr, _, par),
+                                    (org_cursor.ptr, org_cursor, _), (cursor.ptr, _, cursor),
+                                    (org_right.ptr, org_right, _)):
+                self.task_que.set(token, ptr, head, tail)
+            # 命令
+            command_map.update({address: (pack('Q', par.ptr), depend), par.ptr: par_b, cursor.ptr: cursor_b})
 
         def travel(address: int, init: IndexNode, key, depend: int):
-            def rotate():
-                pass
-
             # 声明变量以使用闭包
             index = bisect(init.keys, key) - 1
             left_child = right_child = None
             left_sibling = right_sibling = cursor = None
-            org_init = init.clone()
-            org_left = org_right = org_cursor = None
 
-            # 算法非常复杂，各case用单独函数处理
+            # 独立函数处理各case
             # kil = key in leaf  kii = key in inner
             # lb  = left big     rb  = right big
             # mg  = merge        td  = travel down
@@ -340,8 +501,8 @@ class Engine(BasicEngine):
                 init_b = bytes(init)
                 init.ptr = self.malloc(init.size)
                 # 释放
-                free_nodes.append(org_init)
                 indicate(val)
+                free_nodes.append(org_init)
                 # 同步
                 _ = None
                 for ptr, head, tail in ((address, org_init.ptr, init.ptr),
@@ -351,175 +512,24 @@ class Engine(BasicEngine):
                 command_map.update({address: (pack('Q', init.ptr), depend), init.ptr: init_b})
 
             def kii_lb():
-                # 内存
-                last_val_key = left_child.keys.pop()
-                last_val_ptr = left_child.ptrs_value.pop()
-                val_ptr = init.ptrs_value[index]
-
-                init.keys[index] = last_val_key
-                init.ptrs_value[index] = last_val_ptr
-                right_child.keys.insert(0, key)
-                right_child.ptrs_value.index(0, val_ptr)
-
-                if not left_child.is_leaf:
-                    last_ptr_child = left_child.ptrs_child.pop()
-                    right_child.ptrs_child.insert(0, last_ptr_child)
-
-                # 空间
-                left_child_b = bytes(left_child)
-                left_child.ptr = self.malloc(left_child.size)
-                right_child_b = bytes(right_child)
-                right_child.ptr = self.malloc(right_child.size)
-
-                init.ptrs_child[index] = left_child.ptr
-                init.ptrs_child[index + 1] = right_child.ptr
-                init_b = bytes(init)
-                init.ptr = self.malloc(init.size)
-                # 更新完毕
-
-                # 释放
-                free_nodes.extend((org_init, org_left, org_right))
-                # 同步
-                _ = None
-                for ptr, head, tail in ((address, org_init.ptr, init.ptr),
-                                        (org_init.ptr, org_init, _), (init.ptr, _, init),
-                                        (org_left.ptr, org_left, _), (left_child.ptr, _, left_child),
-                                        (org_right.ptr, org_right, _), (right_child.ptr, _, right_child)):
-                    self.task_que.set(token, ptr, head, tail)
-
-                # 命令
-                command_map.update({address: (pack('Q', init.ptr), depend),
-                                    init.ptr: init_b, left_child.ptr: left_child_b, right_child.ptr: right_child_b})
-                return travel(init.nth_child_ads(index + 1), right_child, key, init.ptr)
+                pass
 
             def kii_rb():
-                # 内存
-                first_val_key = right_child.keys.pop(0)
-                first_val_ptr = right_child.ptrs_value.pop(0)
-                val_ptr = init.ptrs_value[index]
-
-                init.keys[index] = first_val_key
-                init.ptrs_value[index] = first_val_ptr
-                left_child.keys.append(key)
-                left_child.ptrs_value.append(val_ptr)
-
-                if not right_child.is_leaf:
-                    first_ptr_child = right_child.ptrs_child.pop(0)
-                    left_child.ptrs_child.append(first_ptr_child)
-
-                # 空间
-                left_child_b = bytes(left_child)
-                left_child.ptr = self.malloc(left_child.size)
-                right_child_b = bytes(right_child)
-                right_child.ptr = self.malloc(right_child.size)
-
-                init.ptrs_child[index] = left_child.ptr
-                init.ptrs_child[index + 1] = right_child.ptr
-                init_b = bytes(init)
-                init.ptr = self.malloc(init.size)
-                # 更新完毕
-
-                # 释放
-                free_nodes.extend((org_init, org_left, org_right))
-                # 同步
-                _ = None
-                for ptr, head, tail in ((address, org_init.ptr, init.ptr),
-                                        (org_init.ptr, org_init, _), (init.ptr, _, init),
-                                        (org_left.ptr, org_left, _), (left_child.ptr, _, left_child),
-                                        (org_right.ptr, org_right, _), (right_child.ptr, _, right_child)):
-                    self.task_que.set(token, ptr, head, tail)
-
-                # 命令
-                command_map.update({address: (pack('Q', init.ptr), depend),
-                                    init.ptr: init_b, left_child.ptr: left_child_b, right_child.ptr: right_child_b})
-                return travel(init.nth_child_ads(index), left_child, key, init.ptr)
+                pass
 
             def kii_mg():
-                # 内存
-                move_val_key = init.keys.pop(index)
-                move_val_ptr = init.ptrs_value.pop(index)
-                del init.ptrs_child[index + 1]
-
-                left_child.keys.extend((move_val_key, *right_child.keys))
-                left_child.ptrs_value.extend((move_val_ptr, *right_child.ptrs_value))
-                if not left_child.is_leaf:
-                    left_child.ptrs_child.extend(right_child.ptrs_child)
-
-                # 空间
-                left_child_b = bytes(left_child)
-                left_child.ptr = self.malloc(left_child.size)
-
-                init.ptrs_child[index] = left_child.ptr
-                init_b = bytes(init)
-                init.ptr = self.malloc(init.size)
-                # 更新完毕
-
-                # 释放
-                free_nodes.extend((org_init, org_left, org_right))
-                # 同步
-                _ = None
-                for ptr, head, tail in ((address, org_init.ptr, init.ptr),
-                                        (org_init.ptr, org_init, _), (init.ptr, _, init),
-                                        (org_left.ptr, org_left, _), (left_child.ptr, _, left_child),
-                                        (org_right.ptr, org_right, _)):
-                    self.task_que.set(token, ptr, head, tail)
-                # 命令
-                command_map.update({address: (pack('Q', init.ptr), depend),
-                                    init.ptr: init_b, left_child.ptr: left_child_b})
-                return travel(init.nth_child_ads(index), left_child, key, init.ptr)
+                pass
 
             def td_lb():
-                # 内存
-                cursor.keys.insert(0, init.keys.pop(index - 1))
-                cursor.ptrs_value.insert(0, init.ptrs_value.pop(index - 1))
-                init.keys.insert(index - 1, left_sibling.keys.pop())
-                init.ptrs_value.insert(index - 1, left_sibling.ptrs_value.pop())
-                if not cursor.is_leaf:
-                    cursor.ptrs_child.insert(0, left_sibling.ptrs_child.pop())
-
-                # 空间
-                left_sibling_b = bytes(left_sibling)
-                left_sibling.ptr = self.malloc(left_sibling.size)
-                cursor_b = bytes(cursor)
-                cursor.ptr = self.malloc(cursor.size)
-
-                init.ptrs_child[index - 1] = left_sibling.ptr
-                init.ptrs_child[index] = cursor.ptr
-                init_b = bytes(init)
-                init.ptr = self.malloc(init.size)
-                # 更新完毕
-
-                # 释放
-                free_nodes.extend((org_init, org_left, org_cursor))
-                # 同步
-                _ = None
-                # 命令
+                pass
 
             def td_rb():
-                # 内存
-                # 空间
-                # 更新完毕
-                # 释放
-                # 同步
-                # 命令
                 pass
 
             def td_mg_l():
-                # 内存
-                # 空间
-                # 更新完毕
-                # 释放
-                # 同步
-                # 命令
                 pass
 
             def td_mg_r():
-                # 内存
-                # 空间
-                # 更新完毕
-                # 释放
-                # 同步
-                # 命令
                 pass
 
             # key已定位
@@ -534,8 +544,6 @@ class Engine(BasicEngine):
                     right_ptr = init.ptrs_child[index + 1]
                     right_child = fetch(right_ptr)
 
-                    org_left = left_child.clone()
-                    org_right = right_child.clone()
                     # 左子节点 >= t
                     if len(left_child.keys) >= MIN_DEGREE:
                         return kii_lb()
@@ -545,31 +553,29 @@ class Engine(BasicEngine):
                     # 左右子节点均 < t
                     else:
                         return kii_mg()
-
             # 向下寻找
             elif not init.is_leaf:
                 index += 1
-                cursor = fetch(init.ptrs_child[index])
+                ptr = init.ptrs_child[index]
+                cursor = fetch(ptr)
 
                 # 递归目标 < t
                 if len(cursor.keys) < MIN_DEGREE:
-                    org_cursor = cursor.clone()
-
                     if index - 1 >= 0:
-                        left_sibling = fetch(init.ptrs_child[index - 1])
-                        org_left = left_sibling.clone()
+                        left_ptr = init.ptrs_child[index - 1]
+                        left_sibling = fetch(left_ptr)
                         # 左兄妹 >= t
                         if len(left_sibling.keys) >= MIN_DEGREE:
                             return td_lb()
 
                     if index + 1 < len(init.ptrs_child):
-                        right_sibling = fetch(init.ptrs_child[index + 1])
-                        org_right = right_sibling.clone()
+                        right_ptr = init.ptrs_child[index + 1]
+                        right_sibling = fetch(right_ptr)
                         # 右兄妹 >= t
                         if len(right_sibling.keys) >= MIN_DEGREE:
                             return td_rb()
 
-                    # 无兄妹 >= t，需处理shrink的情况
+                    # 无兄妹 >= t
                     if left_sibling:
                         return td_mg_l()
                     else:
