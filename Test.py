@@ -4,7 +4,7 @@ from time import time
 
 from Engine import Engine
 
-NUM = 10000
+NUM = 100
 NAME = 'Test.db'
 
 
@@ -59,6 +59,19 @@ async def con_curr_t():
     await engine.close()
 
 
+async def delete_t():
+    engine = Engine(NAME)
+    for i in range(NUM):
+        engine.set(i, i)
+        print('set', i)
+    for i in range(NUM // 10):
+        engine.remove(i)
+        print('del', i)
+    for i in range(NUM):
+        ensure_future(get(engine, i))
+    await engine.close()
+
+
 if __name__ == '__main__':
     def main(t):
         time_go = time()
@@ -67,7 +80,8 @@ if __name__ == '__main__':
         print('耗时：', int(time() - time_go), '秒')
 
 
-    main(set_get_t)
+    # main(set_get_t)
     # main(get_t)
     # main(set_replace_get_t)
     # main(con_curr_t)
+    main(delete_t)

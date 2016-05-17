@@ -16,7 +16,7 @@ class SortedList(UserList):
         insort(self.data, item)
 
 
-MIN_DEGREE = 128
+MIN_DEGREE = 10
 
 
 class BasicEngine:
@@ -310,7 +310,8 @@ class Engine(BasicEngine):
             if not result:
                 self.file.seek(ptr)
                 result = IndexNode(file=self.file)
-            return self.time_travel(token, result)
+            self.time_travel(token, result)
+            return result
 
         def rotate_left(address: int, par: IndexNode, val_index: int,
                         left_child: IndexNode, right_child: IndexNode, depend: int):
