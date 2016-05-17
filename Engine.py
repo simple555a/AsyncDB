@@ -318,10 +318,12 @@ class Engine(BasicEngine):
             # lb  = left big     rb  = right big
             # mg  = merge        td  = travel down
 
-            # 预声明变量以使用闭包
+            # 声明变量以使用闭包
             index = bisect(init.keys, key) - 1
             left_child = right_child = None
             left_sibling = right_sibling = cursor = None
+            org_init = init.clone()
+            org_left = org_right = org_cursor = None
 
             def kil():
                 org_init = init.clone()
@@ -346,10 +348,6 @@ class Engine(BasicEngine):
                 command_map.update({address: (pack('Q', init.ptr), depend), init.ptr: init_b})
 
             def kii_lb():
-                org_init = init.clone()
-                org_left = left_child.clone()
-                org_right = right_child.clone()
-
                 # 内存
                 last_val_key = left_child.keys.pop()
                 last_val_ptr = left_child.ptrs_value.pop()
@@ -392,10 +390,6 @@ class Engine(BasicEngine):
                 return travel(init.nth_child_ads(index + 1), right_child, key, init.ptr)
 
             def kii_rb():
-                org_init = init.clone()
-                org_left = left_child.clone()
-                org_right = right_child.clone()
-
                 # 内存
                 first_val_key = right_child.keys.pop(0)
                 first_val_ptr = right_child.ptrs_value.pop(0)
@@ -438,10 +432,6 @@ class Engine(BasicEngine):
                 return travel(init.nth_child_ads(index), left_child, key, init.ptr)
 
             def kii_mg():
-                org_init = init.clone()
-                org_left = left_child.clone()
-                org_right = right_child.clone()
-
                 # 内存
                 move_val_key = init.keys.pop(index)
                 move_val_ptr = init.ptrs_value.pop(index)
@@ -499,6 +489,8 @@ class Engine(BasicEngine):
                     right_ptr = init.ptrs_child[index + 1]
                     right_child = fetch(right_ptr)
 
+                    org_left = left_child.clone()
+                    org_right = right_child.clone()
                     # 左子节点 >= t
                     if len(left_child.keys) >= MIN_DEGREE:
                         return kii_lb()
@@ -516,14 +508,18 @@ class Engine(BasicEngine):
 
                 # 递归目标 < t
                 if len(cursor.keys) < MIN_DEGREE:
+                    org_cursor = cursor.clone()
+
                     if index - 1 >= 0:
                         left_sibling = fetch(init.ptrs_child[index - 1])
+                        org_left = left_sibling.clone()
                         # 左兄妹 >= t
                         if len(left_sibling.keys) >= MIN_DEGREE:
                             return td_lb()
 
                     if index + 1 < len(init.ptrs_child):
                         right_sibling = fetch(init.ptrs_child[index + 1])
+                        org_right = right_sibling.clone()
                         # 右兄妹 >= t
                         if len(right_sibling.keys) >= MIN_DEGREE:
                             return td_rb()
