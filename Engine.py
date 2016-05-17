@@ -479,17 +479,9 @@ class Engine(BasicEngine):
             command_map.update({address: (pack('Q', par.ptr), depend), par.ptr: par_b, cursor.ptr: cursor_b})
 
         def travel(address: int, init: IndexNode, key, depend: int):
-            # 声明变量以使用闭包
             index = bisect(init.keys, key) - 1
-            left_child = right_child = None
-            left_sibling = right_sibling = cursor = None
 
-            # 独立函数处理各case
-            # kil = key in leaf  kii = key in inner
-            # lb  = left big     rb  = right big
-            # mg  = merge        td  = travel down
-
-            def kil():
+            def key_in_leaf():
                 org_init = init.clone()
                 self.file.seek(init.ptrs_value[index])
                 val = ValueNode(file=self.file)
@@ -511,32 +503,11 @@ class Engine(BasicEngine):
                 # 命令
                 command_map.update({address: (pack('Q', init.ptr), depend), init.ptr: init_b})
 
-            def kii_lb():
-                pass
-
-            def kii_rb():
-                pass
-
-            def kii_mg():
-                pass
-
-            def td_lb():
-                pass
-
-            def td_rb():
-                pass
-
-            def td_mg_l():
-                pass
-
-            def td_mg_r():
-                pass
-
             # key已定位
             if index >= 0 and init.keys[index] == key:
                 # 位于叶节点
                 if init.is_leaf:
-                    return kil()
+                    return key_in_leaf()
                 # 位于内部节点
                 else:
                     left_ptr = init.ptrs_child[index]
@@ -546,13 +517,16 @@ class Engine(BasicEngine):
 
                     # 左子节点 >= t
                     if len(left_child.keys) >= MIN_DEGREE:
-                        return kii_lb()
+                        rotate_left(address, init, index, left_child, right_child, depend)
+                        return travel(init.nth_child_ads(index + 1), right_child, key, init.ptr)
                     # 右子节点 >= t
                     elif len(right_child.keys) >= MIN_DEGREE:
-                        return kii_rb()
+                        rotate_right(address, init, index, left_child, right_child, depend)
+                        return travel(init.nth_child_ads(index), left_child, key, init.ptr)
                     # 左右子节点均 < t
                     else:
-                        return kii_mg()
+                        merge_left(address, init, index, left_child, right_child, depend)
+                        return travel(init.nth_child_ads(index), right_child, key, init.ptr)
             # 向下寻找
             elif not init.is_leaf:
                 index += 1
@@ -561,27 +535,30 @@ class Engine(BasicEngine):
 
                 # 递归目标 < t
                 if len(cursor.keys) < MIN_DEGREE:
+                    left_sibling = right_sibling = None
+
                     if index - 1 >= 0:
                         left_ptr = init.ptrs_child[index - 1]
                         left_sibling = fetch(left_ptr)
                         # 左兄妹 >= t
                         if len(left_sibling.keys) >= MIN_DEGREE:
-                            return td_lb()
-
+                            rotate_left(address, init, index - 1, left_sibling, cursor, depend)
                     if index + 1 < len(init.ptrs_child):
                         right_ptr = init.ptrs_child[index + 1]
                         right_sibling = fetch(right_ptr)
                         # 右兄妹 >= t
                         if len(right_sibling.keys) >= MIN_DEGREE:
-                            return td_rb()
+                            rotate_right(address, init, index + 1, cursor, right_sibling, depend)
 
                     # 无兄妹 >= t
                     if left_sibling:
-                        return td_mg_l()
+                        merge_left(address, init, index - 1, left_sibling, cursor, depend)
                     else:
-                        return td_mg_r()
-                else:
-                    return travel(init.nth_child_ads(index), cursor, key, init.ptr)
+                        merge_right(address, init, index + 1, cursor, right_sibling, depend)
+
+                    if init is self.root and len(self.root.keys) == 0:
+                        self.root = cursor
+                return travel(init.nth_child_ads(index), cursor, key, init.ptr)
 
         travel(1, self.root, key, 0)
         self.do_cum(token, free_nodes, command_map)
