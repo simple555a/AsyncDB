@@ -314,16 +314,16 @@ class Engine(BasicEngine):
 
         def travel(address: int, init: IndexNode, key, depend: int):
             # 算法非常复杂，各case用单独函数处理
-            # k  = key       kii = key in inner
-            # lb = left big  rb  = right big
-            # mg = merge     td  = travel down
+            # kil = key in leaf  kii = key in inner
+            # lb  = left big     rb  = right big
+            # mg  = merge        td  = travel down
 
             # 预声明变量以使用闭包
             index = bisect(init.keys, key) - 1
             left_child = right_child = None
-            left_sibling = cursor = right_sibling = None
+            left_sibling = right_sibling = cursor = None
 
-            def k_leaf():
+            def kil():
                 org_init = init.clone()
                 self.file.seek(init.ptrs_value[index])
                 val = ValueNode(file=self.file)
@@ -351,18 +351,18 @@ class Engine(BasicEngine):
                 org_right = right_child.clone()
 
                 # 内存
-                last_key = left_child.keys.pop()
-                last_ptr = left_child.ptrs_value.pop()
+                last_val_key = left_child.keys.pop()
+                last_val_ptr = left_child.ptrs_value.pop()
                 val_ptr = init.ptrs_value[index]
 
-                init.keys[index] = last_key
-                init.ptrs_value[index] = last_ptr
+                init.keys[index] = last_val_key
+                init.ptrs_value[index] = last_val_ptr
                 right_child.keys.insert(0, key)
                 right_child.ptrs_value.index(0, val_ptr)
 
                 if not left_child.is_leaf:
-                    last_child_ptr = left_child.ptrs_child.pop()
-                    right_child.ptrs_child.insert(0, last_child_ptr)
+                    last_ptr_child = left_child.ptrs_child.pop()
+                    right_child.ptrs_child.insert(0, last_ptr_child)
 
                 # 空间
                 left_child_b = bytes(left_child)
@@ -397,18 +397,18 @@ class Engine(BasicEngine):
                 org_right = right_child.clone()
 
                 # 内存
-                first_key = right_child.keys.pop(0)
-                first_ptr = right_child.ptrs_value.pop(0)
+                first_val_key = right_child.keys.pop(0)
+                first_val_ptr = right_child.ptrs_value.pop(0)
                 val_ptr = init.ptrs_value[index]
 
-                init.keys[index] = first_key
-                init.ptrs_value[index] = first_ptr
+                init.keys[index] = first_val_key
+                init.ptrs_value[index] = first_val_ptr
                 left_child.keys.append(key)
                 left_child.ptrs_value.append(val_ptr)
 
                 if not right_child.is_leaf:
-                    first_child_ptr = right_child.ptrs_child.pop(0)
-                    left_child.ptrs_child.append(first_child_ptr)
+                    first_ptr_child = right_child.ptrs_child.pop(0)
+                    left_child.ptrs_child.append(first_ptr_child)
 
                 # 空间
                 left_child_b = bytes(left_child)
@@ -438,7 +438,42 @@ class Engine(BasicEngine):
                 return travel(init.nth_child_ads(index), left_child, key, init.ptr)
 
             def kii_mg():
-                pass
+                org_init = init.clone()
+                org_left = left_child.clone()
+                org_right = right_child.clone()
+
+                # 内存
+                move_val_key = init.keys.pop(index)
+                move_val_ptr = init.ptrs_value.pop(index)
+                del init.ptrs_child[index + 1]
+
+                left_child.keys.extend((move_val_key, *right_child.keys))
+                left_child.ptrs_value.extend((move_val_ptr, *right_child.ptrs_value))
+                if not left_child.is_leaf:
+                    left_child.ptrs_child.extend(right_child.ptrs_child)
+
+                # 空间
+                left_child_b = bytes(left_child)
+                left_child.ptr = self.malloc(left_child.size)
+
+                init.ptrs_child[index] = left_child.ptr
+                init_b = bytes(init)
+                init.ptr = self.malloc(init.size)
+                # 更新完毕
+
+                # 释放
+                free_nodes.extend((org_init, org_left, org_right))
+                # 同步
+                _ = None
+                for ptr, head, tail in ((address, org_init.ptr, init.ptr),
+                                        (org_init.ptr, org_init, _), (init.ptr, _, init),
+                                        (org_left.ptr, org_left, _), (left_child.ptr, _, left_child),
+                                        (org_right.ptr, org_right, _)):
+                    self.task_que.set(token, ptr, head, tail)
+                # 命令
+                command_map.update({address: (pack('Q', init.ptr), depend),
+                                    init.ptr: init_b, left_child.ptr: left_child_b})
+                return travel(init.nth_child_ads(index), left_child, key, init.ptr)
 
             def td_lb():
                 pass
@@ -456,7 +491,7 @@ class Engine(BasicEngine):
             if index >= 0 and init.keys[index] == key:
                 # 位于叶节点
                 if init.is_leaf:
-                    return k_leaf()
+                    return kil()
                 # 位于内部节点
                 else:
                     left_ptr = init.ptrs_child[index]
