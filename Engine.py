@@ -617,7 +617,7 @@ class Engine(BasicEngine):
                 val = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))
                 return val.key, val.value
 
-            async def get_child(index: int):
+            async def get_child(index: int) -> IndexNode:
                 ptr = init.ptrs_child[index]
                 child = self.task_que.get(token, ptr, is_active=False)
                 if not child:
