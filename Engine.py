@@ -1,14 +1,15 @@
 from asyncio import ensure_future
 from bisect import insort, bisect, bisect_left
 from collections import UserList
-from os.path import isfile
+from os import remove
+from os.path import getsize, isfile
+from pickle import load, dump, UnpicklingError
 from struct import pack, unpack
 
 from Allocator import Allocator
 from AsyncFile import AsyncFile
 from Node import IndexNode, ValueNode
 from TaskQue import TaskQue, Task
-from Tinker import Tinker
 
 
 class SortedList(UserList):
@@ -16,35 +17,37 @@ class SortedList(UserList):
         insort(self.data, item)
 
 
-MIN_DEGREE = 10
+MIN_DEGREE = 3
+__items__ = '__items__'
 
 
 class BasicEngine:
     # 处理基础事务
     def __init__(self, filename: str):
-        self.allocator = Allocator()
-        self.command_que = SortedList()
-        self.task_que = TaskQue()
-        self.on_write = False
-
         if not isfile(filename):
             with open(filename, 'wb') as file:
                 # 0未关闭，1反之
                 file.write(b'\x00')
-                # 随后8字节为root地址，初始值9
+                # root地址，初始值9
                 file.write(pack('Q', 9))
                 self.root = IndexNode(is_leaf=True)
                 self.root.dump(file)
         else:
             with open(filename, 'rb') as file:
                 if file.read(1) == b'\x00':
-                    Tinker(filename).repair()
+                    file.close()
+                    BasicEngine.repair(filename)
+                    return
                 ptr = unpack('Q', file.read(8))[0]
                 file.seek(ptr)
                 self.root = IndexNode(file=file)
 
+        self.allocator = Allocator()
         self.async_file = AsyncFile(filename)
         self.file = open(filename, 'rb+', buffering=0)
+        self.command_que = SortedList()
+        self.on_write = False
+        self.task_que = TaskQue()
 
     def malloc(self, size: int) -> int:
         ptr = self.allocator.malloc(size)
@@ -113,9 +116,45 @@ class BasicEngine:
         self.file.close()
         self.async_file.close()
 
+    @staticmethod
+    def repair(filename: str):
+        size = getsize(filename)
+        with open(filename, 'rb') as file, open(__items__, 'wb') as items:
+            file.seek(9)
+            while True:
+                if file.tell() == size:
+                    break
+                indic = file.read(1)
+                if indic != b'\x01':
+                    continue
+                try:
+                    val = load(file)
+                    if isinstance(val, tuple) and len(val) == 2:
+                        dump(val, items)
+                except (EOFError, UnpicklingError):
+                    continue
+
 
 class Engine(BasicEngine):
-    # B-Tree核心代码
+    # 核心B-Tree代码
+    def __init__(self, filename: str):
+        if not isfile(__items__):
+            super().__init__(filename)
+
+        if isfile(__items__):
+            if isfile(filename):
+                remove(filename)
+
+            super().__init__(filename)
+            with open(__items__, 'rb') as items:
+                while True:
+                    try:
+                        val = load(items)
+                        self.set(*val)
+                    except EOFError:
+                        break
+            remove(__items__)
+
     async def get(self, key):
         token = self.task_que.create(is_active=False)
         token.command_num += 1
@@ -598,7 +637,7 @@ class Engine(BasicEngine):
 
             for i in range(lo, hi):
                 if max_len and len(result) >= max_len:
-                    break
+                    return
                 item = await get_item(i)
                 result.append(item)
 
