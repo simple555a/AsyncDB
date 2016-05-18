@@ -9,7 +9,7 @@
 Python 3.5以上版本
 
 ## 使用方法
-···Python
+```Python
 from AsyncDB import AsyncDB
 
 # 打开或建立一个数据库
@@ -29,4 +29,4 @@ items = await db.items(item_from='开始值', item_to='结束值', max_len=2048)
 
 # 关闭数据库
 await db.close()
-···
+```
