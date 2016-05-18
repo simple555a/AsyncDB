@@ -18,7 +18,7 @@ class SortedList(UserList):
 
 
 MIN_DEGREE = 64
-NAME_I = '__items__'
+FILE = '__items__'
 
 
 class BasicEngine:
@@ -26,9 +26,9 @@ class BasicEngine:
     def __init__(self, filename: str):
         if not isfile(filename):
             with open(filename, 'wb') as file:
-                # 0未关闭，1反之
+                # indic
                 file.write(b'\x00')
-                # root地址，初始值9
+                # root地址
                 file.write(pack('Q', 9))
                 self.root = IndexNode(is_leaf=True)
                 self.root.dump(file)
@@ -36,8 +36,7 @@ class BasicEngine:
             with open(filename, 'rb') as file:
                 if file.read(1) == b'\x00':
                     file.close()
-                    BasicEngine.repair(filename)
-                    return
+                    return self.repair(filename)
                 ptr = unpack('Q', file.read(8))[0]
                 file.seek(ptr)
                 self.root = IndexNode(file=file)
@@ -112,14 +111,14 @@ class BasicEngine:
     async def close(self):
         await self.task_que.close()
         self.file.seek(0)
-        self.file.write(pack('B', 1))
+        self.file.write(b'\x01')
         self.file.close()
         self.async_file.close()
 
     @staticmethod
     def repair(filename: str):
         size = getsize(filename)
-        with open(filename, 'rb') as file, open(NAME_I, 'wb') as items:
+        with open(filename, 'rb') as file, open(FILE, 'wb') as items:
             file.seek(9)
             while True:
                 if file.tell() == size:
@@ -136,24 +135,24 @@ class BasicEngine:
 
 
 class Engine(BasicEngine):
-    # 核心B-Tree代码
+    # B-Tree核心
     def __init__(self, filename: str):
-        if not isfile(NAME_I):
+        if not isfile(FILE):
             super().__init__(filename)
 
-        if isfile(NAME_I):
+        if isfile(FILE):
             if isfile(filename):
                 remove(filename)
 
             super().__init__(filename)
-            with open(NAME_I, 'rb') as items:
+            with open(FILE, 'rb') as items:
                 while True:
                     try:
                         val = load(items)
                         self.set(*val)
                     except EOFError:
                         break
-            remove(NAME_I)
+            remove(FILE)
 
     async def get(self, key):
         token = self.task_que.create(is_active=False)
@@ -202,7 +201,7 @@ class Engine(BasicEngine):
             self.file.seek(ptr)
             org_val = ValueNode(file=self.file)
             if org_val.value != value:
-                # 在最后写入新Val
+                # 文件尾写入新Val
                 val = ValueNode(key, value)
                 self.file.seek(self.async_file.size)
                 val.dump(self.file)
@@ -303,7 +302,7 @@ class Engine(BasicEngine):
 
         # 到达叶节点
         index = bisect(cursor.keys, key)
-        # 有空root的情况
+        # root有可能为空
         if cursor.keys and cursor.keys[index - 1] == key:
             return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], cursor.ptr)
 
