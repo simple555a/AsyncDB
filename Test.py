@@ -2,7 +2,7 @@ from asyncio import ensure_future, get_event_loop, sleep
 from os.path import getsize
 from time import time
 
-from Engine import Engine
+from AsyncDB import Engine
 
 NUM = 10000
 NAME = 'Test.db'

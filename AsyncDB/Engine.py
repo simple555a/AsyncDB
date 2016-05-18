@@ -6,10 +6,10 @@ from os.path import getsize, isfile
 from pickle import load, dump, UnpicklingError
 from struct import pack, unpack
 
-from Allocator import Allocator
-from AsyncFile import AsyncFile
-from Node import IndexNode, ValueNode
-from TaskQue import TaskQue, Task
+from .Allocator import Allocator
+from .AsyncFile import AsyncFile
+from .Node import IndexNode, ValueNode
+from .TaskQue import TaskQue, Task
 
 
 class SortedList(UserList):

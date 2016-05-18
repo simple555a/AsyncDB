@@ -3,7 +3,7 @@ from collections import UserDict
 from collections.abc import Awaitable
 from sys import exit
 
-from Engine import Engine
+from .Engine import Engine
 
 
 def handler(loop, context):
