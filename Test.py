@@ -4,7 +4,7 @@ from time import time
 
 from Engine import Engine
 
-NUM = 100
+NUM = 1000
 NAME = 'Test.db'
 
 
@@ -80,8 +80,12 @@ if __name__ == '__main__':
         print('耗时：', int(time() - time_go), '秒')
 
 
+    # dev test
     # main(set_get_t)
     # main(get_t)
     # main(set_replace_get_t)
     # main(con_curr_t)
-    main(delete_t)
+    # main(delete_t)
+
+    def ultimate_test():
+        pass

@@ -6,7 +6,7 @@ Memo = namedtuple('Memo', 'head tail')
 
 
 class Task:
-    # Query有对应的Task，用于查询和清理映射
+    # Query有对应Task，用于查询和清理映射
     def __init__(self, task_id: int, is_active: bool, command_num=0):
         self.id = task_id
         self.is_active = is_active

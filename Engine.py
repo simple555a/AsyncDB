@@ -39,7 +39,6 @@ class BasicEngine:
             with open(filename, 'rb') as file:
                 if file.read(1) == b'\x00':
                     Tinker(filename).repair()
-
                 ptr = unpack('Q', file.read(8))[0]
                 file.seek(ptr)
                 self.root = IndexNode(file=file)
@@ -155,7 +154,6 @@ class Engine(BasicEngine):
             return self.a_command_done(token)
 
     def set(self, key, value):
-        # 强一致性，非纯异步
         token = self.task_que.create(is_active=True)
         free_nodes = []
         # command_map: {..., ptr: data OR (data, depend)}
@@ -266,7 +264,7 @@ class Engine(BasicEngine):
 
         # 到达叶节点
         index = bisect(cursor.keys, key)
-        # 考虑空root的情况
+        # 有空root的情况
         if cursor.keys and cursor.keys[index - 1] == key:
             return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], cursor.ptr)
 
