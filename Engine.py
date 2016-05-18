@@ -520,7 +520,6 @@ class Engine(BasicEngine):
                 org_init = init.clone()
                 self.file.seek(init.ptrs_value[index])
                 val = ValueNode(file=self.file)
-
                 # 内存
                 del init.keys[index]
                 del init.ptrs_value[index]
@@ -538,7 +537,7 @@ class Engine(BasicEngine):
                 # 命令
                 command_map.update({address: (pack('Q', init.ptr), depend), init.ptr: init_b})
 
-            # key已定位
+            # 已定位
             if index >= 0 and init.keys[index] == key:
                 # 位于叶节点
                 if init.is_leaf:
@@ -568,7 +567,7 @@ class Engine(BasicEngine):
                 ptr = init.ptrs_child[index]
                 cursor = fetch(ptr)
 
-                # 递归目标 < t
+                # 目标 < t
                 if len(cursor.keys) < MIN_DEGREE:
                     left_sibling = right_sibling = None
 
@@ -629,7 +628,7 @@ class Engine(BasicEngine):
             lo = 0 if item_from is None else bisect_left(init.keys, item_from)
             hi = len(init.keys) if item_to is None else bisect(init.keys, item_to)
 
-            # 检查lo_key之前的child是否accept
+            # 检查lo_key的child是否在范围内
             if not init.is_leaf and (item_from is None or init.keys[lo] > item_from):
                 child = await get_child(0)
                 await travel(child)
