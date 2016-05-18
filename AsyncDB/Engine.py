@@ -1,7 +1,7 @@
 from asyncio import ensure_future
 from bisect import insort, bisect, bisect_left
 from collections import UserList
-from os import remove
+from os import remove, rename
 from os.path import getsize, isfile
 from pickle import load, dump, UnpicklingError
 from struct import pack, unpack
@@ -118,7 +118,7 @@ class BasicEngine:
     @staticmethod
     def repair(filename: str):
         size = getsize(filename)
-        with open(filename, 'rb') as file, open(FILE, 'wb') as items:
+        with open(filename, 'rb') as file, open('$' + FILE, 'wb') as items:
             file.seek(9)
             while True:
                 if file.tell() == size:
@@ -132,6 +132,7 @@ class BasicEngine:
                         dump(val, items)
                 except (EOFError, UnpicklingError):
                     continue
+        rename('$' + FILE, FILE)
 
 
 class Engine(BasicEngine):
