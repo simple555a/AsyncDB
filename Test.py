@@ -91,12 +91,12 @@ if __name__ == '__main__':
 
 
     # dev test
-    # main(set_get_t)
+    main(set_get_t)
     # main(get_t)
     # main(set_replace_get_t)
     # main(con_curr_t)
     # main(delete_t)
-    main(iter_t)
+    # main(iter_t)
 
 
     def ultimate_test():

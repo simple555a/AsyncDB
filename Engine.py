@@ -1,14 +1,14 @@
-from asyncio import ensure_future
+from asyncio import ensure_future, get_event_loop
 from bisect import insort, bisect, bisect_left
 from collections import UserList
-from os.path import isfile
+from os.path import getsize, isfile
+from pickle import load, dump, UnpicklingError
 from struct import pack, unpack
 
 from Allocator import Allocator
 from AsyncFile import AsyncFile
 from Node import IndexNode, ValueNode
 from TaskQue import TaskQue, Task
-from Tinker import Tinker
 
 
 class SortedList(UserList):
@@ -38,7 +38,7 @@ class BasicEngine:
         else:
             with open(filename, 'rb') as file:
                 if file.read(1) == b'\x00':
-                    Tinker(filename).repair()
+                    BasicEngine.repair(filename)
                 ptr = unpack('Q', file.read(8))[0]
                 file.seek(ptr)
                 self.root = IndexNode(file=file)
@@ -112,6 +112,40 @@ class BasicEngine:
         self.file.write(pack('B', 1))
         self.file.close()
         self.async_file.close()
+
+    @staticmethod
+    def repair(filename: str):
+        size = getsize(filename)
+        output = open('__items__', 'wb+')
+        file = open(filename, 'rb')
+        file.seek(9)
+
+        counter = 0
+        while True:
+            if file.tell() == size:
+                break
+            indicator = file.read(1)
+            if indicator != b'\x01':
+                continue
+
+            try:
+                val = load(file)
+                if isinstance(val, tuple) and len(val) == 2:
+                    counter += 1
+                    dump(output, val)
+            except (EOFError, UnpicklingError):
+                continue
+        file.close()
+
+        async def reinstall():
+            engine = Engine('__DB__')
+            for i in range(counter):
+                val = load(output)
+                engine.set(*val)
+            await engine.close()
+
+        event_loop = get_event_loop()
+        event_loop.run_until_complete(reinstall())
 
 
 class Engine(BasicEngine):
@@ -598,7 +632,7 @@ class Engine(BasicEngine):
 
             for i in range(lo, hi):
                 if max_len and len(result) >= max_len:
-                    break
+                    return
                 item = await get_item(i)
                 result.append(item)
 

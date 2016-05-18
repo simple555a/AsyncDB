@@ -115,6 +115,6 @@ class TaskQue:
 
     async def close(self):
         # Queue有可能非空，进行非阻塞等待
-        await sleep(1)
+        await sleep(0)
         while self.que:
             await sleep(1)
