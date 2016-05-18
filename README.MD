@@ -35,10 +35,10 @@ val = await db['foo']
 del db['foo']
 
 # 遍历
-# 默认item_from和item_to为None，表示遍历整个数据库
+# item_from和item_to默认为None，表示遍历整个区间
 items = await db.items(item_from='开始', item_to='结束', max_len=2048)
 
-# 关闭数据库
+# 关闭
 await db.close()
 ```
 
