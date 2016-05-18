@@ -1,7 +1,7 @@
-from asyncio import ensure_future, get_event_loop
+from asyncio import ensure_future
 from bisect import insort, bisect, bisect_left
 from collections import UserList
-from os import rename, remove
+from os import remove
 from os.path import getsize, isfile
 from pickle import load, dump, UnpicklingError
 from struct import pack, unpack
@@ -23,34 +23,30 @@ MIN_DEGREE = 3
 class BasicEngine:
     # 处理基础事务
     def __init__(self, filename: str):
-        self.allocator = Allocator()
-        self.command_que = SortedList()
-        self.task_que = TaskQue()
-        self.on_write = False
-
         if not isfile(filename):
             with open(filename, 'wb') as file:
                 # 0未关闭，1反之
                 file.write(b'\x00')
-                # 随后8字节为root地址，初始值9
+                # root地址，初始值9
                 file.write(pack('Q', 9))
                 self.root = IndexNode(is_leaf=True)
                 self.root.dump(file)
         else:
-            file = open(filename, 'rb')
-            if file.read(1) == b'\x00':
-                file.close()
-                BasicEngine.repair(filename)
-                file = open(filename, 'rb')
-                file.seek(1)
+            with open(filename, 'rb') as file:
+                if file.read(1) == b'\x00':
+                    file.close()
+                    BasicEngine.repair(filename)
+                    return
+                ptr = unpack('Q', file.read(8))[0]
+                file.seek(ptr)
+                self.root = IndexNode(file=file)
 
-            ptr = unpack('Q', file.read(8))[0]
-            file.seek(ptr)
-            self.root = IndexNode(file=file)
-            file.close()
-
+        self.allocator = Allocator()
         self.async_file = AsyncFile(filename)
         self.file = open(filename, 'rb+', buffering=0)
+        self.command_que = SortedList()
+        self.on_write = False
+        self.task_que = TaskQue()
 
     def malloc(self, size: int) -> int:
         ptr = self.allocator.malloc(size)
@@ -120,45 +116,41 @@ class BasicEngine:
         self.async_file.close()
 
     @staticmethod
-    def repair(filename: str):
+    def repair(filename: str) -> int:
         size = getsize(filename)
-        output = open('__items__', 'wb+')
-        file = open(filename, 'rb')
-        file.seek(9)
-
-        counter = 0
-        while True:
-            if file.tell() == size:
-                break
-            indicator = file.read(1)
-            if indicator != b'\x01':
-                continue
-
-            try:
-                val = load(file)
-                if isinstance(val, tuple) and len(val) == 2:
-                    counter += 1
-                    dump(output, val)
-            except (EOFError, UnpicklingError):
-                continue
-        file.close()
-
-        async def reinstall():
-            engine = Engine('__DB__')
-            for i in range(counter):
-                val = load(output)
-                engine.set(*val)
-            await engine.close()
-
-        event_loop = get_event_loop()
-        event_loop.run_until_complete(reinstall())
-        rename(filename, '_' + filename)
-        rename('__DB__', filename)
-        remove('_' + filename)
+        with open('__items__', 'wb'), open(filename, 'rb') as (output, file):
+            file.seek(9)
+            while True:
+                if file.tell() == size:
+                    break
+                indicator = file.read(1)
+                if indicator != b'\x01':
+                    continue
+                try:
+                    val = load(file)
+                    if isinstance(val, tuple) and len(val) == 2:
+                        dump(val, output)
+                except (EOFError, UnpicklingError):
+                    continue
 
 
 class Engine(BasicEngine):
-    # B-Tree核心代码
+    # B-Tree相关代码
+    def __init__(self, filename: str):
+        super().__init__(filename)
+        if isfile('__items__'):
+            self.file.close()
+            self.async_file.close()
+            remove(filename)
+            super().__init__(filename)
+            with open('__items__', 'rb') as file:
+                while True:
+                    try:
+                        val = load(file)
+                        self.set(*val)
+                    except EOFError:
+                        break
+
     async def get(self, key):
         token = self.task_que.create(is_active=False)
         token.command_num += 1
