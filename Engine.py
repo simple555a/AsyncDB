@@ -1,6 +1,7 @@
 from asyncio import ensure_future, get_event_loop
 from bisect import insort, bisect, bisect_left
 from collections import UserList
+from os import rename, remove
 from os.path import getsize, isfile
 from pickle import load, dump, UnpicklingError
 from struct import pack, unpack
@@ -16,7 +17,7 @@ class SortedList(UserList):
         insort(self.data, item)
 
 
-MIN_DEGREE = 10
+MIN_DEGREE = 3
 
 
 class BasicEngine:
@@ -36,12 +37,17 @@ class BasicEngine:
                 self.root = IndexNode(is_leaf=True)
                 self.root.dump(file)
         else:
-            with open(filename, 'rb') as file:
-                if file.read(1) == b'\x00':
-                    BasicEngine.repair(filename)
-                ptr = unpack('Q', file.read(8))[0]
-                file.seek(ptr)
-                self.root = IndexNode(file=file)
+            file = open(filename, 'rb')
+            if file.read(1) == b'\x00':
+                file.close()
+                BasicEngine.repair(filename)
+                file = open(filename, 'rb')
+                file.seek(1)
+
+            ptr = unpack('Q', file.read(8))[0]
+            file.seek(ptr)
+            self.root = IndexNode(file=file)
+            file.close()
 
         self.async_file = AsyncFile(filename)
         self.file = open(filename, 'rb+', buffering=0)
@@ -146,6 +152,9 @@ class BasicEngine:
 
         event_loop = get_event_loop()
         event_loop.run_until_complete(reinstall())
+        rename(filename, '_' + filename)
+        rename('__DB__', filename)
+        remove('_' + filename)
 
 
 class Engine(BasicEngine):
