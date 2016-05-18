@@ -36,10 +36,10 @@ class AsyncDB:
         self.engine = Engine(filename)
 
     def __getitem__(self, key) -> Awaitable:
-        async def get():
+        async def coro():
             return self.cache[key] if key in self.cache else await self.engine.get(key)
 
-        return get()
+        return coro()
 
     def __setitem__(self, key, value):
         self.cache[key] = value
