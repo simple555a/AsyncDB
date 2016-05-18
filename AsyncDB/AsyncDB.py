@@ -51,3 +51,6 @@ class AsyncDB:
 
     def items(self, item_from=None, item_to=None, max_len=0) -> Awaitable:
         return self.engine.items(item_from, item_to, max_len)
+
+    async def close(self):
+        await self.engine.close()
