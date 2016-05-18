@@ -61,7 +61,7 @@ class TaskQue:
             token.ptrs.append(ptr)
 
     def get(self, token: Task, ptr: int, depend=0, is_active=True):
-        def get_id():
+        def get_depend_id():
             if depend in self.virtual_map:
                 id_list, _ = self.virtual_map[depend]
                 index = bisect(id_list, token.id)
@@ -74,7 +74,7 @@ class TaskQue:
 
         # 查询映射
         if ptr in self.virtual_map:
-            depend_id = get_id()
+            depend_id = get_depend_id()
             id_list, memo_list = self.virtual_map[ptr]
             index = bisect(id_list, token.id)
 

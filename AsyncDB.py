@@ -37,10 +37,7 @@ class AsyncDB:
 
     def __getitem__(self, key) -> Awaitable:
         async def get():
-            if key in self.cache:
-                return self.cache[key]
-            else:
-                return await self.engine.get(key)
+            return self.cache[key] if key in self.cache else await self.engine.get(key)
 
         return get()
 
