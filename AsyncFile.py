@@ -5,6 +5,8 @@ from io import FileIO
 from os.path import getsize
 from typing import Callable, Any
 
+loop = get_event_loop()
+
 
 class FastIO:
     def __init__(self, filename: str):
@@ -35,7 +37,6 @@ class FastIO:
 class AsyncFile:
     def __init__(self, filename: str, io_num=8):
         self.size = getsize(filename)
-        self.event_loop = get_event_loop()
         self.executor = ThreadPoolExecutor(io_num)
         self.io_que = deque((FastIO(filename) for _ in range(io_num)), io_num)
 
@@ -46,7 +47,7 @@ class AsyncFile:
             self.io_que.append(io)
             return result
 
-        return await self.event_loop.run_in_executor(self.executor, async_call)
+        return await loop.run_in_executor(self.executor, async_call)
 
     async def write(self, offset: int, data: bytes):
         assert self.size >= offset + len(data)
@@ -56,7 +57,7 @@ class AsyncFile:
             io.write(offset, data)
             self.io_que.append(io)
 
-        await self.event_loop.run_in_executor(self.executor, async_call)
+        await loop.run_in_executor(self.executor, async_call)
 
     async def exec(self, offset: int, action: Callable[[FileIO], Any]):
         # read only
@@ -66,7 +67,7 @@ class AsyncFile:
             self.io_que.append(io)
             return result
 
-        return await self.event_loop.run_in_executor(self.executor, async_call)
+        return await loop.run_in_executor(self.executor, async_call)
 
     def close(self):
         for io in self.io_que:

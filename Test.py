@@ -90,8 +90,7 @@ if __name__ == '__main__':
         print('耗时：', int(time() - time_go), '秒')
 
 
-    # dev test
-    main(set_get_t)
+    # main(set_get_t)
     # main(get_t)
     # main(set_replace_get_t)
     # main(con_curr_t)
