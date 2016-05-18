@@ -72,6 +72,16 @@ async def delete_t():
     await engine.close()
 
 
+async def iter_t():
+    engine = Engine(NAME)
+    for i in range(NUM):
+        engine.set(i, i)
+        print('set', i)
+    result = await engine.items()
+    result.sort()
+    print(result)
+
+
 if __name__ == '__main__':
     def main(t):
         time_go = time()
@@ -86,6 +96,8 @@ if __name__ == '__main__':
     # main(set_replace_get_t)
     # main(con_curr_t)
     # main(delete_t)
+    main(iter_t)
+
 
     def ultimate_test():
         pass

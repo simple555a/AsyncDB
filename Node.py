@@ -77,7 +77,7 @@ class ValueNode:
             self.load(file)
 
     def __bytes__(self):
-        assert not (self.key is self.value is None)
+        assert self.key is not None
         # 0删除 1正常
         result = pack('B', 1) + dumps((self.key, self.value))
         self.size = len(result)

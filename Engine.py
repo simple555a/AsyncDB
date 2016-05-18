@@ -1,5 +1,5 @@
 from asyncio import ensure_future
-from bisect import insort, bisect
+from bisect import insort, bisect, bisect_left
 from collections import UserList
 from os.path import isfile
 from struct import pack, unpack
@@ -115,7 +115,7 @@ class BasicEngine:
 
 
 class Engine(BasicEngine):
-    # B-Tree相关
+    # B-Tree核心代码
     async def get(self, key):
         token = self.task_que.create(is_active=False)
         token.command_num += 1
@@ -563,5 +563,49 @@ class Engine(BasicEngine):
         travel(1, self.root, key, 0)
         self.do_cum(token, free_nodes, command_map)
 
-    async def items(self, item_from=None, item_to=None, max_len=1024):
-        pass
+    async def items(self, item_from=None, item_to=None, max_len=0):
+        assert item_from <= item_to if item_from and item_to else True
+        if item_from is not None and item_from == item_to:
+            return await self.get(item_from)
+
+        token = self.task_que.create(is_active=False)
+        token.command_num += 1
+        result = []
+
+        async def travel(init: IndexNode):
+            async def get_item(index: int):
+                ptr = init.ptrs_value[index]
+                val = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))
+                return val.key, val.value
+
+            async def get_child(index: int):
+                ptr = init.ptrs_child[index]
+                child = self.task_que.get(token, ptr, is_active=False)
+                if not child:
+                    child = await self.async_file.exec(ptr, lambda f: IndexNode(file=f))
+                self.time_travel(token, child)
+                return child
+
+            # lo_key >= item_from
+            # hi_key >  item_to
+            lo = 0 if item_from is None else bisect_left(init.keys, item_from)
+            hi = len(init.keys) if item_to is None else bisect(init.keys, item_to)
+
+            # 检查lo_key之前的child是否accept
+            if not init.is_leaf and (item_from is None or init.keys[lo] > item_from):
+                child = await get_child(0)
+                await travel(child)
+
+            for i in range(lo, hi):
+                if max_len and len(result) >= max_len:
+                    break
+                item = await get_item(i)
+                result.append(item)
+
+                if not init.is_leaf:
+                    child = await get_child(i + 1)
+                    await travel(child)
+
+        await travel(self.root)
+        self.a_command_done(token)
+        return result
