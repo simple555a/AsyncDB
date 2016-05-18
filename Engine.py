@@ -18,6 +18,7 @@ class SortedList(UserList):
 
 
 MIN_DEGREE = 3
+ITEMS = '__items__'
 
 
 class BasicEngine:
@@ -118,38 +119,40 @@ class BasicEngine:
     @staticmethod
     def repair(filename: str) -> int:
         size = getsize(filename)
-        with open('__items__', 'wb'), open(filename, 'rb') as (output, file):
+        with open(filename, 'rb') as file, open(ITEMS, 'wb') as items:
             file.seek(9)
             while True:
                 if file.tell() == size:
                     break
-                indicator = file.read(1)
-                if indicator != b'\x01':
+                indic = file.read(1)
+                if indic != b'\x01':
                     continue
                 try:
                     val = load(file)
                     if isinstance(val, tuple) and len(val) == 2:
-                        dump(val, output)
+                        dump(val, items)
                 except (EOFError, UnpicklingError):
                     continue
 
 
 class Engine(BasicEngine):
-    # B-Tree相关代码
+    # 核心B-Tree代码
     def __init__(self, filename: str):
-        super().__init__(filename)
-        if isfile('__items__'):
-            self.file.close()
-            self.async_file.close()
-            remove(filename)
+        if not isfile(ITEMS):
             super().__init__(filename)
-            with open('__items__', 'rb') as file:
+        if isfile(ITEMS):
+            if isfile(filename):
+                remove(filename)
+
+            super().__init__(filename)
+            with open(ITEMS, 'rb') as items:
                 while True:
                     try:
-                        val = load(file)
+                        val = load(items)
                         self.set(*val)
                     except EOFError:
                         break
+            remove(ITEMS)
 
     async def get(self, key):
         token = self.task_que.create(is_active=False)
