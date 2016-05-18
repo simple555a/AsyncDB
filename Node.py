@@ -18,7 +18,7 @@ class IndexNode:
             self.load(file)
 
     def __bytes__(self):
-        result = dumps((self.is_leaf, self.keys)) + b''.join(pack('Q', ptr) for ptr in self.ptrs_value)
+        result = dumps([self.is_leaf, self.keys]) + b''.join(pack('Q', ptr) for ptr in self.ptrs_value)
         if not self.is_leaf:
             result += b''.join(pack('Q', ptr) for ptr in self.ptrs_child)
         self.size = len(result)
@@ -26,7 +26,7 @@ class IndexNode:
 
     def load(self, file: FileIO):
         self.ptr = file.tell()
-        # IndexNode: (is_leaf, [..., key]) + ptrs_value + ptrs_child if not is_leaf
+        # IndexNode: [is_leaf, [..., key]] + ptrs_value + ptrs_child if not is_leaf
         self.is_leaf, self.keys = load(file)
 
         ptr_num = len(self.keys)

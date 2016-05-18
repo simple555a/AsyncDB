@@ -17,8 +17,8 @@ class SortedList(UserList):
         insort(self.data, item)
 
 
-MIN_DEGREE = 3
-__items__ = '__items__'
+MIN_DEGREE = 64
+_items_ = '__items__'
 
 
 class BasicEngine:
@@ -119,7 +119,7 @@ class BasicEngine:
     @staticmethod
     def repair(filename: str):
         size = getsize(filename)
-        with open(filename, 'rb') as file, open(__items__, 'wb') as items:
+        with open(filename, 'rb') as file, open(_items_, 'wb') as items:
             file.seek(9)
             while True:
                 if file.tell() == size:
@@ -138,22 +138,22 @@ class BasicEngine:
 class Engine(BasicEngine):
     # 核心B-Tree代码
     def __init__(self, filename: str):
-        if not isfile(__items__):
+        if not isfile(_items_):
             super().__init__(filename)
 
-        if isfile(__items__):
+        if isfile(_items_):
             if isfile(filename):
                 remove(filename)
 
             super().__init__(filename)
-            with open(__items__, 'rb') as items:
+            with open(_items_, 'rb') as items:
                 while True:
                     try:
                         val = load(items)
                         self.set(*val)
                     except EOFError:
                         break
-            remove(__items__)
+            remove(_items_)
 
     async def get(self, key):
         token = self.task_que.create(is_active=False)
