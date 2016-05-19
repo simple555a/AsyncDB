@@ -12,6 +12,8 @@
 
 * 所有key必须可以使用bisect排序
 
+* 内置缓存，得到的结果有可能是之前的引用
+
 * 强ACID，软件可以在任意时刻崩溃，数据都是安全的，但对硬件断电之类的情况不做保证
 
 * 非正常关闭，下一次启动，程序会自动修复数据库，这可能会相当费时
@@ -35,14 +37,14 @@ val = await db['foo']
 del db['foo']
 
 # 遍历
-# 默认item_from和item_to为None，表示遍历整个数据库
+# item_from和item_to默认为None，表示遍历整个区间
 items = await db.items(item_from='开始', item_to='结束', max_len=2048)
 
-# 关闭数据库
+# 关闭
 await db.close()
 ```
 
 ### 优势
 * 速度快
 
-* 真正意义上的*动态*数据库，对key和value的类型没有*任何限制*
+* 真正意义上的**动态**数据库，对key和value的类型没有**任何限制**
