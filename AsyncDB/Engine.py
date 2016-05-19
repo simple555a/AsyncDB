@@ -36,16 +36,17 @@ class BasicEngine:
             with open(filename, 'rb') as file:
                 if file.read(1) == b'\x00':
                     file.close()
-                    return self.repair(filename)
+                    self.repair(filename)
+                    return
                 ptr = unpack('Q', file.read(8))[0]
                 file.seek(ptr)
                 self.root = IndexNode(file=file)
 
         self.allocator = Allocator()
-        self.async_file = AsyncFile(filename)
         self.file = open(filename, 'rb+', buffering=0)
-        self.command_que = SortedList()
+        self.async_file = AsyncFile(filename)
         self.on_write = False
+        self.command_que = SortedList()
         self.task_que = TaskQue()
 
     def malloc(self, size: int) -> int:
