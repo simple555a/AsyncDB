@@ -181,7 +181,7 @@ class Engine(BasicEngine):
 
         # root ptrs实时更新
         index = bisect(self.root.keys, key)
-        if self.root.keys[index - 1] == key:
+        if index - 1 >= 0 and self.root.keys[index - 1] == key:
             ptr = self.root.ptrs_value[index - 1]
             val = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))
             assert val.key == key
