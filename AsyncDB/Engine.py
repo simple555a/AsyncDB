@@ -315,6 +315,7 @@ class Engine(BasicEngine):
         # 阻塞写入，确保ACID
         self.file.seek(val.ptr)
         self.file.write(val_b)
+        self.file.flush()
 
         cursor.keys.insert(index, val.key)
         cursor.ptrs_value.insert(index, val.ptr)
