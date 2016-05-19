@@ -1,18 +1,7 @@
-from asyncio import get_event_loop
 from collections import UserDict
 from collections.abc import Awaitable
-from sys import exit
 
 from .Engine import Engine
-
-
-def handler(loop, context):
-    loop.default_exception_handler(context)
-    exit()
-
-
-loop = get_event_loop()
-loop.set_exception_handler(handler)
 
 
 class Cache(UserDict):

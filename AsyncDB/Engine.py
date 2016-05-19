@@ -277,7 +277,6 @@ class Engine(BasicEngine):
 
         # 向下循环直到叶节点
         while not cursor.is_leaf:
-            self.time_travel(token, cursor)
             index = bisect(cursor.keys, key)
             # 检查key是否已存在
             if cursor.keys[index - 1] == key:
@@ -289,6 +288,10 @@ class Engine(BasicEngine):
                 self.file.seek(ptr)
                 child = IndexNode(file=self.file)
             self.time_travel(token, child)
+
+            i = bisect(child.keys, key) - 1
+            if child.keys[i] == key:
+                return replace(child.nth_value_ads(i), child.ptrs_value[i], child.ptr)
 
             if len(child.keys) == 2 * MIN_DEGREE - 1:
                 split(address, cursor, index, child, depend)
@@ -304,8 +307,8 @@ class Engine(BasicEngine):
 
         # 到达叶节点
         index = bisect(cursor.keys, key)
-        # root有可能为空
-        if cursor.keys and cursor.keys[index - 1] == key:
+        # cursor可能是root且为空
+        if cursor is self.root and cursor.keys and cursor.keys[index - 1] == key:
             return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], cursor.ptr)
 
         org_cursor = cursor.clone()
@@ -315,7 +318,6 @@ class Engine(BasicEngine):
         # 阻塞写入，确保ACID
         self.file.seek(val.ptr)
         self.file.write(val_b)
-        self.file.flush()
 
         cursor.keys.insert(index, val.key)
         cursor.ptrs_value.insert(index, val.ptr)
