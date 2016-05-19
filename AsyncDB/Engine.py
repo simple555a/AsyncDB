@@ -17,7 +17,7 @@ class SortedList(UserList):
         insort(self.data, item)
 
 
-MIN_DEGREE = 64
+MIN_DEGREE = 3
 FILE = '__items__'
 
 
@@ -365,7 +365,7 @@ class Engine(BasicEngine):
             par.keys[val_index] = last_val_key
             par.ptrs_value[val_index] = last_val_ptr
             right_child.keys.insert(0, val_key)
-            right_child.ptrs_value.index(0, val_ptr)
+            right_child.ptrs_value.insert(0, val_ptr)
 
             if not left_child.is_leaf:
                 last_ptr_child = left_child.ptrs_child.pop()
@@ -373,8 +373,8 @@ class Engine(BasicEngine):
 
             # 空间
             left_b = bytes(left_child)
-            left_child.ptr = self.malloc(left_child.size)
             right_b = bytes(right_child)
+            left_child.ptr = self.malloc(left_child.size)
             right_child.ptr = self.malloc(right_child.size)
 
             par.ptrs_child[val_index] = left_child.ptr
@@ -419,8 +419,8 @@ class Engine(BasicEngine):
 
             # 空间
             left_b = bytes(left_child)
-            left_child.ptr = self.malloc(left_child.size)
             right_b = bytes(right_child)
+            left_child.ptr = self.malloc(left_child.size)
             right_child.ptr = self.malloc(right_child.size)
 
             par.ptrs_child[val_index] = left_child.ptr
