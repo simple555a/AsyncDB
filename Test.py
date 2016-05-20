@@ -10,8 +10,7 @@ M = 7000
 NAME = 'Test.db'
 
 
-# c, i = consistency, isolation
-async def ci_t():
+async def acid_t():
     if isfile(NAME):
         remove(NAME)
 
@@ -65,22 +64,29 @@ async def ci_t():
         assert cmp[key] == value
     assert len(items) == len(cmp_items)
 
-    # 检查参数有效性
+    # 参数有效性
     sub_items = cmp_items[1:100]
     items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0])
     assert items == sub_items
     items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0], max_len=10)
     assert len(items) == 10
-    print('Iter Param OK')
-
+    print('Iter Params OK')
     await db.close()
-    print('CI OK')
+
+    # 数据入库
+    db = AsyncDB(NAME)
+    for key, value in cmp_items:
+        print('d_iter', key)
+        db_value = await db[key]
+        assert db_value == value
+    await db.close()
+    print('ACID OK')
 
 
 def main():
     loop = get_event_loop()
-    for i in range(20):
-        loop.run_until_complete(ci_t())
+    for i in range(10):
+        loop.run_until_complete(acid_t())
         remove(NAME)
 
 
