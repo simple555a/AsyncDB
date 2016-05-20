@@ -21,7 +21,7 @@
 * MIT协议发布
 
 ## 使用方法
-复制AsyncDB文件夹到任意解释器能import的目录。如不清楚，直接复制到程序根目录即可。
+复制AsyncDB文件夹到任意的解释器能import的目录。如不清楚，复制到程序根目录即可。
 
 ```Python
 from AsyncDB import AsyncDB
@@ -39,14 +39,11 @@ val = await db['foo']
 del db['foo']
 
 # 遍历
-# item_from和item_to默认为None，表示遍历整个区间
+# item_from和item_to默认为None，表示遍历整个数据库
 items = await db.items(item_from='开始', item_to='结束', max_len=2048)
 
 # 关闭
 await db.close()
 ```
 
-### 优势
-* 速度快
-
-* 真正意义上的**动态**数据库，对key和value的类型没有**任何限制**
+真正意义上的**动态**数据库，对key和value的类型没有**任何限制**
