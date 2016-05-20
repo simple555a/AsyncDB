@@ -643,20 +643,24 @@ class Engine(BasicEngine):
             lo = 0 if item_from is None else bisect_left(init.keys, item_from)
             hi = len(init.keys) if item_to is None else bisect(init.keys, item_to)
 
-            # 检查lo_key的child是否在范围内
+            # 检查lo_child是否在范围内
             if not init.is_leaf and (item_from is None or init.keys[lo] > item_from):
                 child = await get_child(0)
                 await travel(child)
+            if max_len and len(result) >= max_len:
+                return
 
             for i in range(lo, hi):
-                if max_len and len(result) >= max_len:
-                    return
                 item = await get_item(i)
                 result.append(item)
+                if max_len and len(result) >= max_len:
+                    return
 
                 if not init.is_leaf:
                     child = await get_child(i + 1)
                     await travel(child)
+                    if max_len and len(result) >= max_len:
+                        return
 
         await travel(self.root)
         self.a_command_done(token)
