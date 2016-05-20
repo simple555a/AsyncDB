@@ -552,6 +552,15 @@ class Engine(BasicEngine):
                 # 命令
                 command_map.update({address: (pack('Q', init.ptr), depend), init.ptr: init_b})
 
+            def root_is_empty(successor: IndexNode):
+                free_nodes.append(self.root)
+                _ = None
+                for ptr, head, tail in ((address, self.root.ptr, successor.ptr),
+                                        (self.root.ptr, self.root, _), (successor.ptr, _, successor)):
+                    self.task_que.set(token, ptr, head, tail)
+                command_map.update({address: pack('Q', successor.ptr)})
+                self.root = successor
+
             # 已定位
             if index >= 0 and init.keys[index] == key:
                 # 位于叶节点
@@ -575,6 +584,8 @@ class Engine(BasicEngine):
                     # 左右子节点均 < t
                     else:
                         merge_left(address, init, index, left_child, right_child, depend)
+                        if len(self.root.keys) == 0:
+                            root_is_empty(right_child)
                         return travel(init.nth_child_ads(index), right_child, key, init.ptr)
             # 向下寻找
             elif not init.is_leaf:
@@ -608,8 +619,8 @@ class Engine(BasicEngine):
                         merge_left(address, init, index, left_sibling, cursor, depend)
                     else:
                         merge_right(address, init, index, cursor, right_sibling, depend)
-                    if init is self.root and len(self.root.keys) == 0:
-                        self.root = cursor
+                    if len(self.root.keys) == 0:
+                        root_is_empty(cursor)
                 return travel(init.nth_child_ads(index), cursor, key, init.ptr)
 
         travel(1, self.root, key, 0)
