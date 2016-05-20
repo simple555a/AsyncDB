@@ -1,100 +1,87 @@
-from asyncio import ensure_future, sleep, get_event_loop
+from asyncio import get_event_loop, sleep, ensure_future
 from os import remove
+from os.path import isfile
 from random import randint
 
 from AsyncDB import AsyncDB
 
-T = 100
-M = 10000
+T = 10000
+M = 7000
 NAME = 'Test.db'
-
-cmp = {}
 
 
 # c, i = consistency, isolation
 async def ci_t():
+    if isfile(NAME):
+        remove(NAME)
+
+    cmp = {}
     db = AsyncDB(NAME)
+    record = open('$Record.txt', 'w')
 
     async def check(key, expect):
         output = await db[key]
         assert output == expect
 
     for i in range(T):
-        # 增
-        if 1:
+        # 增改
+        if randint(0, 1):
             rand_key = randint(0, M)
-            if rand_key not in cmp:
-                rand_value = randint(0, M)
-                cmp[rand_key] = rand_value
-                db[rand_key] = rand_value
-                print('set', rand_key, 'to', rand_value)
+            rand_value = randint(0, M)
+            print('set', rand_key, 'to', rand_value)
+            record.write('db[{}]={}\n'.format(rand_key, rand_value))
+            cmp[rand_key] = rand_value
+            db[rand_key] = rand_value
 
         # 删
-        if 0:
+        if randint(0, 1):
             rand_key = randint(0, M)
-            if rand_key in cmp:
-                del cmp[rand_key]
-                del db[rand_key]
             print('del', rand_key)
+            if rand_key in cmp:
+                record.write('del db[{}]\n'.format(rand_key))
+                del cmp[rand_key]
+            del db[rand_key]
 
         # 读
-        if 1:
+        if randint(0, 1):
             rand_key = randint(0, M)
+            expect = cmp.get(rand_key)
             print('get', rand_key)
-            ensure_future(check(rand_key, cmp.get(rand_key)))
-            print(len(db.engine.task_que.virtual_map))
+            record.write('ensure_future(check({}, {}))\n'.format(rand_key, expect))
+            ensure_future(check(rand_key, expect))
             await sleep(0)
 
     # 遍历
-    print('Final', len(db.engine.task_que.virtual_map))
-    items = cmp.items()
-    for key, value in items:
+    cmp_items = list(cmp.items())
+    for key, value in cmp_items:
+        print('iter', key)
         db_value = await db[key]
-        print(len(db.engine.task_que.virtual_map))
         assert db_value == value
+    cmp_items.sort()
 
-    # items = await db.items()
-    # for key, value in items:
-    #     assert cmp[key] == value
-    #     db_value = await db[key]
-    #     assert value == db_value
+    items = await db.items()
+    for key, value in items:
+        print('check', key)
+        assert cmp[key] == value
+    assert len(items) == len(cmp_items)
+
+    # 检查参数有效性
+    sub_items = cmp_items[1:100]
+    items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0])
+    assert items == sub_items
+    items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0], max_len=10)
+    assert len(items) == 10
+    print('Iter Param OK')
+
     await db.close()
     print('CI OK')
 
 
-# d = durability
-async def d_t():
-    db = AsyncDB(NAME)
-    items = await db.items()
-    for key, value in items:
-        assert cmp[key] == value
-        assert value == await db[key]
-
-    # 检测参数是否有效
-    cmp_keys = sorted(cmp.keys())
-    lo_key = cmp_keys[0]
-    hi_key = cmp_keys[len(cmp_keys) // 2]
-
-    items = await db.items(lo_key, hi_key)
-    assert lo_key == items[0][0]
-    assert hi_key != items[-1][0]
-    for i in range(len(items)):
-        if i + 1 < len(items):
-            assert items[i][0] < items[i + 1][0]
-        assert cmp[items[0][0]] == items[0][1]
-
-    items = await db.items(lo_key, hi_key, max_len=3)
-    assert lo_key == items[0][0]
-    assert len(items) == 3
-    await db.close()
-    print('D OK')
-
-
 def main():
     loop = get_event_loop()
-    loop.run_until_complete(ci_t())
-    # loop.run_until_complete(d_t())
-    remove(NAME)
+    for i in range(20):
+        loop.run_until_complete(ci_t())
+        remove(NAME)
 
 
 if __name__ == '__main__':
