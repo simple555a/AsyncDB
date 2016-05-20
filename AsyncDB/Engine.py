@@ -46,11 +46,19 @@ class BasicEngine:
         self.file = open(filename, 'rb+', buffering=0)
         self.async_file = AsyncFile(filename)
         self.on_write = False
+        # on_interval: (begin, end)
+        self.on_interval = None
         self.command_que = SortedList()
         self.task_que = TaskQue()
 
     def malloc(self, size: int) -> int:
+        def is_inside(ptr: int):
+            begin, end = self.on_interval
+            return begin <= ptr <= end or begin <= ptr + size <= end
+
         ptr = self.allocator.malloc(size)
+        if ptr and self.on_interval and is_inside(ptr):
+            ptr = 0
         if not ptr:
             ptr = self.async_file.size
             self.async_file.size += size
@@ -76,8 +84,6 @@ class BasicEngine:
     def a_command_done(self, token: Task):
         token.command_num -= 1
         if token.command_num == 0:
-            if token.is_active and token.free_param:
-                self.free(*token.free_param)
             self.task_que.clean()
 
     # cum = cumulation
@@ -98,7 +104,9 @@ class BasicEngine:
                 if not cancel:
                     cancel = self.task_que.is_canceled(token, ptr)
                 if not cancel:
+                    self.on_interval = (ptr, ptr + len(data))
                     await self.async_file.write(ptr, data)
+                    self.on_interval = None
                 self.a_command_done(token)
             self.on_write = False
 
@@ -289,8 +297,8 @@ class Engine(BasicEngine):
                 child = IndexNode(file=self.file)
             self.time_travel(token, child)
 
-            i = bisect(child.keys, key) - 1
-            if child.keys[i] == key:
+            i = bisect_left(child.keys, key)
+            if i < len(child.keys) and child.keys[i] == key:
                 return replace(child.nth_value_ads(i), child.ptrs_value[i], child.ptr)
 
             if len(child.keys) == 2 * MIN_DEGREE - 1:

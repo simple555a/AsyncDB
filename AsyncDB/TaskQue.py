@@ -17,7 +17,7 @@ class Task:
             # free_param: (ptr, size)
             self.free_param = None
 
-    def __lt__(self, other: 'Task'):
+    def __lt__(self, other):
         return self.id < other.id
 
 
@@ -102,7 +102,7 @@ class TaskQue:
                 break
             else:
                 if head.is_active:
-                    # 清理映射
+                    # 清理
                     for ptr in head.ptrs:
                         id_list, memo_list = self.virtual_map[ptr]
                         del id_list[0]
