@@ -49,7 +49,7 @@ class BasicEngine:
         # on_interval: (begin, end)
         self.on_interval = None
         self.command_que = SortedList()
-        self.task_que = TaskQue()
+        self.task_que = TaskQue(self.allocator)
 
     def malloc(self, size: int) -> int:
         def is_inside(ptr: int):
@@ -58,6 +58,7 @@ class BasicEngine:
 
         ptr = self.allocator.malloc(size)
         if ptr and self.on_interval and is_inside(ptr):
+            self.free(ptr, size)
             ptr = 0
         if not ptr:
             ptr = self.async_file.size
@@ -104,7 +105,8 @@ class BasicEngine:
                 if not cancel:
                     cancel = self.task_que.is_canceled(token, ptr)
                 if not cancel:
-                    self.on_interval = (ptr, ptr + len(data))
+                    # 确保边界不相连
+                    self.on_interval = (ptr - 1, ptr + len(data) + 1)
                     await self.async_file.write(ptr, data)
                     self.on_interval = None
                 self.a_command_done(token)
