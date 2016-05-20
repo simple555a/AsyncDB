@@ -17,7 +17,7 @@ class SortedList(UserList):
         insort(self.data, item)
 
 
-MIN_DEGREE = 3
+MIN_DEGREE = 64
 FILE = '__items__'
 
 
@@ -38,9 +38,12 @@ class BasicEngine:
                     file.close()
                     self.repair(filename)
                     return
-                ptr = unpack('Q', file.read(8))[0]
-                file.seek(ptr)
-                self.root = IndexNode(file=file)
+                else:
+                    ptr = unpack('Q', file.read(8))[0]
+                    file.seek(ptr)
+                    self.root = IndexNode(file=file)
+                    file.seek(0)
+                    file.write(b'\x00')
 
         self.allocator = Allocator()
         self.file = open(filename, 'rb+', buffering=0)
