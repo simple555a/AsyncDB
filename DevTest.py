@@ -21,7 +21,7 @@ async def read():
 
 
 def main():
-    # 运行时，强制关闭以测试原子性
+    # 手动结束进程以测试原子性
     loop = get_event_loop()
     loop.run_until_complete(write())
     # loop.run_until_complete(read())

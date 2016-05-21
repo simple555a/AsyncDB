@@ -1,6 +1,7 @@
 from asyncio import ensure_future
 from bisect import insort, bisect, bisect_left
 from collections import UserList
+from contextlib import suppress
 from os import remove, rename
 from os.path import getsize, isfile
 from pickle import load, dump, UnpicklingError
@@ -139,12 +140,10 @@ class BasicEngine:
                 indic = file.read(1)
                 if indic != b'\x01':
                     continue
-                try:
-                    val = load(file)
-                    if isinstance(val, tuple) and len(val) == 2:
-                        dump(val, items)
-                except (EOFError, UnpicklingError):
-                    continue
+                with suppress(EOFError, UnpicklingError):
+                    item = load(file)
+                    if isinstance(item, tuple) and len(item) == 2:
+                        dump(item, items)
         rename('$' + FILE, FILE)
 
 
