@@ -33,7 +33,7 @@ class BasicEngine:
                 self.root = IndexNode(is_leaf=True)
                 self.root.dump(file)
         else:
-            with open(filename, 'rb') as file:
+            with open(filename, 'rb+') as file:
                 if file.read(1) == b'\x00':
                     file.close()
                     return BasicEngine.repair(filename)
