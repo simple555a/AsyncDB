@@ -36,8 +36,7 @@ class BasicEngine:
             with open(filename, 'rb') as file:
                 if file.read(1) == b'\x00':
                     file.close()
-                    self.repair(filename)
-                    return
+                    return BasicEngine.repair(filename)
                 else:
                     ptr = unpack('Q', file.read(8))[0]
                     file.seek(ptr)
