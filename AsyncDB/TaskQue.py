@@ -17,7 +17,7 @@ class Task:
             # free_param: (ptr, size)
             self.free_param = None
 
-    def __lt__(self, other):
+    def __lt__(self, other: 'Task'):
         return self.id < other.id
 
 

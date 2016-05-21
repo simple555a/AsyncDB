@@ -162,8 +162,8 @@ class Engine(BasicEngine):
             with open(FILE, 'rb') as items:
                 while True:
                     try:
-                        val = load(items)
-                        self.set(*val)
+                        item = load(items)
+                        self.set(*item)
                     except EOFError:
                         break
             remove(FILE)
