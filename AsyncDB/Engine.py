@@ -19,7 +19,7 @@ class SortedList(UserList):
 
 
 MIN_DEGREE = 64
-FILE = '__items__'
+TEMP = '__items__'
 
 
 class BasicEngine:
@@ -27,7 +27,7 @@ class BasicEngine:
     def __init__(self, filename: str):
         if not isfile(filename):
             with open(filename, 'wb') as file:
-                # indic
+                # indicator
                 file.write(b'\x00')
                 # root地址
                 file.write(pack('Q', 9))
@@ -132,7 +132,7 @@ class BasicEngine:
     @staticmethod
     def repair(filename: str):
         size = getsize(filename)
-        with open(filename, 'rb') as file, open('$' + FILE, 'wb') as items:
+        with open(filename, 'rb') as file, open('$' + TEMP, 'wb') as items:
             file.seek(9)
             while True:
                 if file.tell() == size:
@@ -144,28 +144,28 @@ class BasicEngine:
                     item = load(file)
                     if isinstance(item, tuple) and len(item) == 2:
                         dump(item, items)
-        rename('$' + FILE, FILE)
+        rename('$' + TEMP, TEMP)
 
 
 class Engine(BasicEngine):
     # B-Tree核心
     def __init__(self, filename: str):
-        if not isfile(FILE):
+        if not isfile(TEMP):
             super().__init__(filename)
 
-        if isfile(FILE):
+        if isfile(TEMP):
             if isfile(filename):
                 remove(filename)
 
             super().__init__(filename)
-            with open(FILE, 'rb') as items:
+            with open(TEMP, 'rb') as items:
                 while True:
                     try:
                         item = load(items)
                         self.set(*item)
                     except EOFError:
                         break
-            remove(FILE)
+            remove(TEMP)
 
     async def get(self, key):
         token = self.task_que.create(is_active=False)
@@ -261,7 +261,7 @@ class Engine(BasicEngine):
             par.ptrs_child.insert(child_index + 1, sibling.ptr)
             par_b = bytes(par)
             par.ptr = self.malloc(par.size)
-            # 内存更新完毕
+            # 更新完毕
 
             # 释放
             free_nodes.extend((org_par, org_child))
@@ -334,7 +334,7 @@ class Engine(BasicEngine):
         cursor.ptrs_value.insert(index, val.ptr)
         cursor_b = bytes(cursor)
         cursor.ptr = self.malloc(cursor.size)
-        # 内存更新完毕
+        # 更新完毕
 
         # 释放
         free_nodes.append(org_cursor)
@@ -655,9 +655,9 @@ class Engine(BasicEngine):
             lo = 0 if item_from is None else bisect_left(init.keys, item_from)
             hi = len(init.keys) if item_to is None else bisect(init.keys, item_to)
 
-            # 检查lo_child是否在范围内
+            # 检查lo_key predecessor是否在范围内
             if not init.is_leaf and (item_from is None or init.keys[lo] > item_from):
-                child = await get_child(0)
+                child = await get_child(lo)
                 await travel(child)
             if max_len and len(result) >= max_len:
                 return
