@@ -52,10 +52,10 @@ class BasicEngine:
         # on_interval: (begin, end)
         self.on_interval = None
         self.command_que = SortedList()
-        self.task_que = TaskQue(self.allocator)
+        self.task_que = TaskQue()
 
     def malloc(self, size: int) -> int:
-        def is_inside(ptr: int):
+        def is_inside(ptr: int) -> bool:
             begin, end = self.on_interval
             return begin <= ptr <= end or begin <= ptr + size <= end
 
@@ -224,7 +224,7 @@ class Engine(BasicEngine):
                 self.file.write(pack('B', 0))
 
                 # 释放
-                token.free_param = (org_val.ptr, org_val.size)
+                token.free_param = lambda: self.free(org_val.ptr, org_val.size)
                 # 同步
                 self.task_que.set(token, address, org_val.ptr, val.ptr)
                 # 命令
@@ -355,7 +355,7 @@ class Engine(BasicEngine):
         def indicate(val: ValueNode):
             self.file.seek(val.ptr)
             self.file.write(pack('B', 0))
-            token.free_param = (val.ptr, val.size)
+            token.free_param = lambda: self.free(val.ptr, val.size)
 
         def fetch(ptr: int) -> IndexNode:
             result = self.task_que.get(token, ptr)

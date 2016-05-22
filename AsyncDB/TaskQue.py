@@ -1,6 +1,7 @@
 from asyncio import sleep
 from bisect import bisect
 from collections import deque, namedtuple
+from collections.abc import Callable
 
 Memo = namedtuple('Memo', 'head tail')
 
@@ -23,8 +24,7 @@ class Task:
 
 class TaskQue:
     # 通过que确保异步下的ACID
-    def __init__(self, allocator):
-        self.allocator = allocator
+    def __init__(self):
         self.next_id = 0
         self.que = deque()
         # virtual_map: {..., ptr: ([..., id], [..., memo])}
@@ -104,8 +104,8 @@ class TaskQue:
             else:
                 if head.is_active:
                     # 清理
-                    if head.free_param:
-                        self.allocator.free(*head.free_param)
+                    if isinstance(head.free_param, Callable):
+                        head.free_param()
                     for ptr in head.ptrs:
                         id_list, memo_list = self.virtual_map[ptr]
                         del id_list[0]
