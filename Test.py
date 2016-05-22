@@ -16,7 +16,6 @@ async def acid_t():
 
     cmp = {}
     db = AsyncDB(NAME)
-    record = open('$Record.txt', 'w')
 
     async def check(key, expect):
         output = await db[key]
@@ -28,7 +27,6 @@ async def acid_t():
             rand_key = randint(0, M)
             rand_value = randint(0, M)
             print('set', rand_key, 'to', rand_value)
-            record.write('db[{}]={}\n'.format(rand_key, rand_value))
             cmp[rand_key] = rand_value
             db[rand_key] = rand_value
 
@@ -37,7 +35,6 @@ async def acid_t():
             rand_key = randint(0, M)
             print('del', rand_key)
             if rand_key in cmp:
-                record.write('del db[{}]\n'.format(rand_key))
                 del cmp[rand_key]
             del db[rand_key]
 
@@ -46,7 +43,6 @@ async def acid_t():
             rand_key = randint(0, M)
             expect = cmp.get(rand_key)
             print('get', rand_key)
-            record.write('ensure_future(check({}, {}))\n'.format(rand_key, expect))
             ensure_future(check(rand_key, expect))
             await sleep(0)
 
@@ -60,23 +56,23 @@ async def acid_t():
 
     items = await db.items()
     for key, value in items:
-        print('check', key)
+        print('compare', key)
         assert cmp[key] == value
     assert len(items) == len(cmp_items)
 
-    # 参数有效性
+    # 遍历的参数
     sub_items = cmp_items[1:100]
     items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0])
     assert items == sub_items
     items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0], max_len=10)
     assert len(items) == 10
-    print('Iter Params OK')
+    print('iter params OK')
     await db.close()
 
     # 数据入库
     db = AsyncDB(NAME)
     for key, value in cmp_items:
-        print('d_iter', key)
+        print('post_iter', key)
         db_value = await db[key]
         assert db_value == value
     await db.close()
