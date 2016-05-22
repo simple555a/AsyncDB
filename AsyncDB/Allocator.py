@@ -30,7 +30,7 @@ class SizeMap(UserDict):
 
     def add(self, size: int, ptr: int):
         ptrs = self.data.setdefault(size, [])
-        ptrs.append(ptr)
+        insort(ptrs, ptr)
 
 
 class Allocator:
@@ -65,7 +65,8 @@ class Allocator:
         tail_ptr = ptr + size
         while tail_ptr in self.ptr_map:
             tail_size = self.ptr_map.pop(tail_ptr)
-            self.size_map[tail_size].remove(tail_ptr)
+            ptrs = self.size_map[tail_size]
+            del ptrs[bisect_left(ptrs, tail_ptr)]
             if not self.size_map[tail_size]:
                 del self.size_map[tail_size]
                 del self.size_que[self.size_que.find(tail_size)]
