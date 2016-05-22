@@ -73,8 +73,9 @@ class Allocator:
         size = tail_ptr - ptr
 
         if size in self.size_map:
-            self.ptr_map[ptr] = size
-            self.size_map.add(size, ptr)
+            if len(self.size_map[size]) < self.size_que.max_len:
+                self.ptr_map[ptr] = size
+                self.size_map.add(size, ptr)
         else:
             size_remove = self.size_que.append(size)
             if size_remove == size:
