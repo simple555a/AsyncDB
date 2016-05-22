@@ -61,18 +61,22 @@ async def acid_t():
     assert len(items) == len(cmp_items)
 
     # 遍历的参数
-    sub_items = cmp_items[1:100]
+    max_i = len(cmp_items) - 1
+    i_from = randint(0, max_i)
+    i_to = randint(i_from, max_i)
+    sub_items = cmp_items[i_from:i_to]
+
     items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0])
     assert items == sub_items
     items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0], max_len=10)
-    assert len(items) == 10
+    assert len(items) <= 10
     print('iter params OK')
     await db.close()
 
     # 数据入库
     db = AsyncDB(NAME)
     for key, value in cmp_items:
-        print('post_iter', key)
+        print('po_iter', key)
         db_value = await db[key]
         assert db_value == value
     await db.close()
