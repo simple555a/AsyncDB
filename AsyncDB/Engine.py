@@ -318,7 +318,7 @@ class Engine(BasicEngine):
 
         # 到达叶节点
         index = bisect(cursor.keys, key)
-        # cursor可能是root且为空
+        # cursor可能是root且可能为空
         if cursor is self.root and cursor.keys and cursor.keys[index - 1] == key:
             return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], cursor.ptr)
 
@@ -559,7 +559,7 @@ class Engine(BasicEngine):
                 for ptr, head, tail in ((address, self.root.ptr, successor.ptr),
                                         (self.root.ptr, self.root, _), (successor.ptr, _, successor)):
                     self.task_que.set(token, ptr, head, tail)
-                command_map.update({address: pack('Q', successor.ptr)})
+                command_map[address] = pack('Q', successor.ptr)
                 self.root = successor
 
             # 已定位
