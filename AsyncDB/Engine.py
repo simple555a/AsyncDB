@@ -630,7 +630,8 @@ class Engine(BasicEngine):
     async def items(self, item_from=None, item_to=None, max_len=0):
         assert item_from <= item_to if item_from and item_to else True
         if item_from is not None and item_from == item_to:
-            return await self.get(item_from)
+            value = await self.get(item_from)
+            return [(item_from, value)]
 
         token = self.task_que.create(is_active=False)
         token.command_num += 1

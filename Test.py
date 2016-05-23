@@ -69,7 +69,7 @@ async def acid_t():
     items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0])
     assert items == sub_items
     items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0], max_len=10)
-    assert len(items) <= 10
+    assert len(items) == min(10, len(sub_items))
     print('iter params OK')
     await db.close()
 
@@ -85,7 +85,7 @@ async def acid_t():
 
 def main():
     loop = get_event_loop()
-    for i in range(10):
+    for i in range(100):
         loop.run_until_complete(acid_t())
         remove(NAME)
 
