@@ -68,8 +68,9 @@ async def acid_t():
 
     items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0])
     assert items == sub_items
-    items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0], max_len=10)
-    assert len(items) == min(10, len(sub_items))
+    max_len = randint(1, M)
+    items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0], max_len=max_len)
+    assert len(items) == min(max_len, len(sub_items))
     print('iter params OK')
     await db.close()
 

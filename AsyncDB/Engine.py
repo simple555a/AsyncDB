@@ -660,20 +660,16 @@ class Engine(BasicEngine):
             if not init.is_leaf and (item_from is None or lo == len(init.keys) or init.keys[lo] > item_from):
                 child = await get_child(lo)
                 await travel(child)
-            if max_len and len(result) >= max_len:
-                return
 
             for i in range(lo, hi):
-                item = await get_item(i)
-                result.append(item)
                 if max_len and len(result) >= max_len:
                     return
+                item = await get_item(i)
+                result.append(item)
 
                 if not init.is_leaf:
                     child = await get_child(i + 1)
                     await travel(child)
-                    if max_len and len(result) >= max_len:
-                        return
 
         await travel(self.root)
         self.a_command_done(token)
