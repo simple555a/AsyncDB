@@ -657,7 +657,7 @@ class Engine(BasicEngine):
             hi = len(init.keys) if item_to is None else bisect(init.keys, item_to)
 
             # 检查lo_key predecessor是否在范围内
-            if not init.is_leaf and (item_from is None or init.keys[lo] > item_from):
+            if not init.is_leaf and (item_from is None or lo == len(init.keys) or init.keys[lo] > item_from):
                 child = await get_child(lo)
                 await travel(child)
             if max_len and len(result) >= max_len:

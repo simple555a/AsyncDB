@@ -62,8 +62,8 @@ async def acid_t():
 
     # 遍历的参数
     max_i = len(cmp_items) - 1
-    i_from = randint(0, max_i)
-    i_to = randint(i_from, max_i)
+    i_from = randint(0, max_i - 1)
+    i_to = randint(i_from + 1, max_i)
     sub_items = cmp_items[i_from:i_to]
 
     items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0])
