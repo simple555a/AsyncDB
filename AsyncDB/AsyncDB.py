@@ -31,6 +31,8 @@ class AsyncDB:
         return coro()
 
     def __setitem__(self, key, value):
+        if key in self.cache and self.cache[key] == value:
+            return
         self.cache[key] = value
         self.engine.set(key, value)
 
