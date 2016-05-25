@@ -14,7 +14,7 @@ class Cache(UserDict):
         if len(self.data) > self.max_len:
             self.data.popitem()
 
-    def remove(self, key):
+    def __delitem__(self, key):
         if key in self.data:
             del self.data[key]
 
@@ -37,7 +37,7 @@ class AsyncDB:
         self.engine.set(key, value)
 
     def __delitem__(self, key):
-        self.cache.remove(key)
+        del self.cache[key]
         self.engine.remove(key)
 
     def items(self, item_from=None, item_to=None, max_len=0) -> Awaitable:
