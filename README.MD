@@ -9,21 +9,33 @@ widely used. The DB tries to solve the problem by Python Coroutine and AsyncIO.
 The DB can achieve some optimizations that cannot be done with traditional databases, by modifying the B-Tree algorithm.
 
 ## 注意事项 Attention
-* Python 3.5.1以上版本，没有其余依赖。Python 3.5.1 or later is required and no other dependency.
+* Python 3.5.1以上版本，没有其余依赖。
 
-* 只能在协程环境下使用。Only compatible with coroutine environment.
+Python 3.5.1 or later is required and no other dependency.
 
-* 所有key必须可以使用bisect排序，建议使用bisect.insort测试。All keys must be "bisectable" i.e. can be sorted by bisect.insort.
+* 只能在协程环境下使用。
 
-* 内置缓存，得到的结果有可能是之前结果的引用。There is a cache inside. The result can be a reference of the previous result.
+Only compatible with coroutine environment.
 
-* ACID，软件可以在任意时刻崩溃，数据都是安全的，但对硬件断电之类的情况不做保证。The DB guarantees the ACID properties with
- software failures but hardware.
+* 所有key必须可以使用bisect排序，建议使用bisect.insort测试。
 
-* 非正常关闭，下一次启动，程序会自动修复数据库，这可能会相当费时。If the DB closes unexpectedly, it will repair itself
- next time, which takes time.
+All keys must be "bisectable" i.e. can be sorted by bisect.insort.
 
-* 以MIT协议发布。The DB is shared under the MIT license.
+* 内置缓存，得到的结果有可能是之前结果的引用。
+
+There is a cache inside. The result can be a reference of the previous result.
+
+* ACID，软件可以在任意时刻崩溃，数据都是安全的，但对硬件断电之类的情况不做保证。
+
+The DB guarantees the ACID properties with software failures but hardware.
+
+* 非正常关闭，下一次启动，程序会自动修复数据库，这可能会相当费时。
+
+If the DB closes unexpectedly, it will repair itself next time, which takes time.
+
+* 以MIT协议发布。
+
+The DB is shared under the MIT license.
 
 ## 使用方法 Usage
 复制AsyncDB文件夹到任意的解释器能import的目录。如不清楚，复制到根目录即可。
