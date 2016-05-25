@@ -46,7 +46,7 @@ Copy "AsyncDB" folder to wherever Python interpreter can import. If you are not 
 from AsyncDB import AsyncDB
 
 # 打开或建立一个数据库
-# Open or Create a DB
+# Open/Create a DB
 db = AsyncDB('Test.db')
 
 # 写入
@@ -72,4 +72,4 @@ await db.close()
 
 真正意义上的**动态**数据库，对key和value的类型没有**限制**
 
-There is no restriction of types of keys and values.
+There is no **restriction** of types of keys and values.
