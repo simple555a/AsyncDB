@@ -2,7 +2,7 @@
 传统数据库面对高并发，采用多线程和锁。本作采用协程和异步IO，基于Python开发。
 
 When traditional databases encounter concurrency problems, multiple threads and locks is a reasonable solution and is
-widely used. This DB tries to solve the problem by Python Coroutine and AsyncIO.
+widely used. The DB tries to solve the problem by Python Coroutine and AsyncIO.
 
 通过对B-Tree进行调整，能做到许多传统数据库做不到的优化。
 
@@ -11,7 +11,7 @@ The DB can achieve some optimizations that cannot be done with traditional datab
 ## 注意事项 Attention
 * Python 3.5.1以上版本，没有其余依赖。Python 3.5.1 or later is required and no other dependency.
 
-* 只能在协程环境下使用。Only compatible with coroutine programming environment.
+* 只能在协程环境下使用。Only compatible with coroutine environment.
 
 * 所有key必须可以使用bisect排序，建议使用bisect.insort测试。All keys must be "bisectable" i.e. can be sorted by bisect.insort.
 
