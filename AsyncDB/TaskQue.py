@@ -3,11 +3,15 @@ from bisect import bisect
 from collections import deque, namedtuple
 from collections.abc import Callable
 
+# the key of async DB is using 'finite state machine' https://en.wikipedia.org/wiki/Finite-state_machine
+# when jumping between different coros, find and load a proper state
+
+# state is a memo
 Memo = namedtuple('Memo', 'head tail')
 
 
 class Task:
-    # Query有对应Task，用于查询和清理映射
+    # every query has a task to get/set proper states
     def __init__(self, task_id: int, is_active: bool, command_num=0):
         self.id = task_id
         self.is_active = is_active
@@ -23,15 +27,14 @@ class Task:
 
 
 class TaskQue:
-    # 通过que确保异步下的ACID
     def __init__(self):
         self.next_id = 0
         self.que = deque()
         # virtual_map: {..., ptr: ([..., id], [..., memo])}
         self.virtual_map = {}
 
+    # make a task to get/set states later
     def create(self, is_active: bool) -> Task:
-        # Query改动索引；Queue为空；上一个Query改动索引
         if is_active or not self.que or self.que[-1].is_active:
             token = Task(self.next_id, is_active)
             self.next_id += 1
@@ -44,7 +47,7 @@ class TaskQue:
         if ptr == 0:
             return
 
-        # 建立映射
+        # make a state
         memo = Memo(head, tail)
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
@@ -53,7 +56,6 @@ class TaskQue:
             memo_list = []
             self.virtual_map[ptr] = (id_list, memo_list)
 
-        # 避免重复
         if id_list and id_list[-1] == token.id:
             memo_list[-1] = memo
         else:
@@ -73,7 +75,7 @@ class TaskQue:
             else:
                 return 0
 
-        # 查询映射
+        # get a state
         if ptr in self.virtual_map:
             depend_id = get_depend_id()
             id_list, memo_list = self.virtual_map[ptr]
@@ -89,6 +91,7 @@ class TaskQue:
                 result = result.clone()
             return result
 
+    # we can know if the write command is not up-to-date i.e. there is a newer state
     def is_canceled(self, token: Task, ptr: int) -> bool:
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
@@ -103,7 +106,7 @@ class TaskQue:
                 break
             else:
                 if head.is_active:
-                    # 清理
+                    # clean states tree
                     if isinstance(head.free_param, Callable):
                         head.free_param()
                     for ptr in head.ptrs:
@@ -113,11 +116,10 @@ class TaskQue:
                         if not id_list:
                             del self.virtual_map[ptr]
         else:
-            # 重置
+            # no tasks, we can count from 0 again
             self.next_id = 0
 
     async def close(self):
-        # Queue有可能非空，进行非阻塞等待
         await sleep(0)
         while self.que:
             await sleep(1)
