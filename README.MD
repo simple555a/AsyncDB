@@ -1,4 +1,4 @@
-[中文](#CHN)
+[中文版](#CHN)
 
 # AsyncDB
 When traditional databases encounter concurrency problems, multiple threads and locks is a reasonable solution and is
@@ -42,7 +42,7 @@ await db.close()
 
 There is no **restriction** of types of keys and values.
 
-### <a name="CHN"></a>
+###<a name="CHN"></a>中文版
 传统数据库面对高并发，采用多线程和锁。本作采用协程和异步IO，基于Python开发。
 
 通过对B-Tree进行调整，能做到许多传统数据库做不到的优化。
