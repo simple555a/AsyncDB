@@ -70,6 +70,6 @@ items = await db.items(item_from='start', item_to='end', max_len=1024)
 await db.close()
 ```
 
-真正意义上的**动态**数据库，对key和value的类型没有**限制**
+本数据库对key和value的类型没有**限制**
 
 There is no **restriction** of types of keys and values.
