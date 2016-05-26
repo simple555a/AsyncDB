@@ -10,8 +10,8 @@ M = 10000  # range of keys and values
 NAME = 'Test.db'
 
 
-# The idea of the test is randomized controlled trial
-# cmp is a normal Python dict. The DB should act exactly the same with cmp
+# The idea of test is randomized controlled trial
+# cmp is a normal Python dict. The DB should act exactly the same as cmp
 async def acid_t():
     if isfile(NAME):
         remove(NAME)
@@ -24,7 +24,7 @@ async def acid_t():
         output = await db[key]
         assert output == expect
 
-    # use randint to exec series of random operation
+    # use randint to generate series of random operation
     for i in range(T):
         # setitem
         if randint(0, 1):
@@ -48,7 +48,7 @@ async def acid_t():
             expect = cmp.get(rand_key)
             print('get', rand_key)
             ensure_future(check(rand_key, expect))
-            await sleep(0)
+            await sleep(0)  # make sure exec check immediately
 
     # iter
     cmp_items = list(cmp.items())
@@ -78,7 +78,7 @@ async def acid_t():
     print('iter params OK')
     await db.close()
 
-    # re-open the DB, it should still act like cmp
+    # after re-open the DB, it should still act like cmp
     db = AsyncDB(NAME)
     for key, value in cmp_items:
         print('po_iter', key)
