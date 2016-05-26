@@ -40,7 +40,7 @@ The DB is shared under the MIT license.
 ## 使用方法 Usage
 复制AsyncDB文件夹到到程序根目录即可。
 
-Copy "AsyncDB" folder to the root folder of your program.
+Copy "AsyncDB" folder to the root of your program.
 
 ```Python
 from AsyncDB import AsyncDB
