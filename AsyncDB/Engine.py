@@ -92,7 +92,7 @@ class BasicEngine:
             self.task_que.clean()
 
     # cum = cumulation
-    # the command part of operations that change the B-Tree index: releases nodes and dispatch write commands
+    # the common part of operations that change the B-Tree index: releases nodes and dispatch write commands
     def do_cum(self, token: Task, free_nodes, command_map):
         for node in free_nodes:
             self.free(node.ptr, node.size)
@@ -110,7 +110,7 @@ class BasicEngine:
                 if not cancel:
                     cancel = self.task_que.is_canceled(token, ptr)
                 if not cancel:
-                    # ensure it will never be that two threads write same area, which cause dead lock
+                    # ensure it will never happen that two threads write the same area, which causes dead lock
                     self.on_interval = (ptr - 1, ptr + len(data) + 1)
                     await self.async_file.write(ptr, data)
                     self.on_interval = None
@@ -120,7 +120,7 @@ class BasicEngine:
         if not self.on_write:
             self.on_write = True
             ensure_future(coro())
-        # sort the write command by ptr and token.id
+        # sort the write commands by ptr and token.id
         self.command_que.append((ptr, token, data, depend))
         token.command_num += 1
 
@@ -150,7 +150,7 @@ class BasicEngine:
 
 
 class Engine(BasicEngine):
-    # B-Tree Core Part
+    # B-Tree Core
     def __init__(self, filename: str):
         if not isfile(TEMP):
             super().__init__(filename)
@@ -254,7 +254,7 @@ class Engine(BasicEngine):
             par.keys.insert(child_index, child.keys.pop())
             par.ptrs_value.insert(child_index, child.ptrs_value.pop())
 
-            # allocator HDD space
+            # allocate HDD space
             child_b = bytes(child)
             sibling_b = bytes(sibling)
             child.ptr = self.malloc(child.size)
@@ -310,7 +310,7 @@ class Engine(BasicEngine):
             if len(child.keys) == 2 * MIN_DEGREE - 1:
                 split(address, cursor, index, child, depend)
                 if cursor.keys[index] < key:
-                    # path is transfer to sibling
+                    # path is moved to sibling
                     index += 1
                     ptr = cursor.ptrs_child[index]
                     child = self.task_que.get(token, ptr)
@@ -350,7 +350,7 @@ class Engine(BasicEngine):
         self.do_cum(token, free_nodes, command_map)
 
     def remove(self, key):
-        # you should be very familiar with B-Tree algorithm, otherwise you can never understand the code
+        # you should be very familiar with B-Tree algorithm, otherwise you cannot understand the code
         token = self.task_que.create(is_active=True)
         free_nodes = []
         command_map = {}
