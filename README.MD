@@ -38,9 +38,9 @@ If the DB closes unexpectedly, it will repair itself next time, which takes time
 The DB is shared under the MIT license.
 
 ## 使用方法 Usage
-复制AsyncDB文件夹到任意的解释器能import的目录。如不清楚，复制到根目录即可。
+复制AsyncDB文件夹到到程序根目录即可。
 
-Copy "AsyncDB" folder to wherever Python interpreter can import. If you are not sure, just copy it to the root then.
+Copy "AsyncDB" folder to the root folder of your program.
 
 ```Python
 from AsyncDB import AsyncDB
