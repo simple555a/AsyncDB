@@ -11,9 +11,9 @@ The DB can get some optimizations that cannot be done with traditional databases
 * Only compatible with coroutine environment.
 * All keys must be "bisectable" i.e. can be sorted by bisect.insort.
 * There is a cache inside. The result can be a reference of the previous result.
-* The DB guarantees the ACID properties with software failures but hardware.
+* The DB guarantees ACID properties with software failures but hardware.
 * If the DB closes unexpectedly, it will repair itself next time, which takes time.
-* The DB is shared under the MIT license.
+* The code is shared under the MIT license.
 
 ## Usage
 Copy "AsyncDB" folder to the root of your program.
@@ -57,7 +57,7 @@ There is no **restriction** of types of keys and values.
 * 以MIT协议发布。
 
 ## 使用方法
-复制AsyncDB文件夹到到程序根目录即可。
+复制AsyncDB文件夹到到程序根目录。
 
 ```Python
 from AsyncDB import AsyncDB
