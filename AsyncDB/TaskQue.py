@@ -32,6 +32,9 @@ class TaskQue:
         self.virtual_map = {}
 
     def create(self, is_active: bool) -> Task:
+        if not self.lock.locked():
+            self.lock.acquire()
+
         # Query改动索引；Queue为空；上一个Query改动索引
         if is_active or not self.que or self.que[-1].is_active:
             token = Task(self.next_id, is_active)
