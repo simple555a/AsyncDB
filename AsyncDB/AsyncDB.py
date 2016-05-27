@@ -46,4 +46,4 @@ class AsyncDB:
 
     def assert_open(self):
         if not self.open:
-            raise Exception
+            raise Exception('Closed DB')

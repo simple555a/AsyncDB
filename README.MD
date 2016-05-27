@@ -21,7 +21,6 @@ Copy "AsyncDB" folder to the root of your program.
 ```Python
 from AsyncDB import AsyncDB
 
-# Open/Create a DB
 db = AsyncDB('Test.db')
 
 db.set('key_bisectable', 'value')
@@ -30,7 +29,7 @@ val = await db.get('key_bisectable')
 
 val = await db.pop('key_bisectable')
 
-items = await db.items(item_from='key_start', item_to='key_end', max_len=1024, reverse=False)
+items = await db.items(item_from='begin', item_to='end', max_len=1024, reverse=False)
 
 await db.close()
 ```
