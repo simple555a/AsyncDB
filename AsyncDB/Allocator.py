@@ -81,12 +81,12 @@ class Allocator:
             size_remove = self.size_que.append(size)
             if size_remove == size:
                 return
-            # size未被直接移除
+            # 未被移除
             else:
                 self.ptr_map[ptr] = size
                 self.size_map.add(size, ptr)
 
-            # 存在溢出
+            # 溢出
             if size_remove:
                 for ptr in self.size_map[size_remove]:
                     del self.ptr_map[ptr]
