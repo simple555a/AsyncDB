@@ -652,8 +652,8 @@ class Engine(BasicEngine):
             lo = 0 if item_from is None else bisect_left(init.keys, item_from)
             hi = len(init.keys) if item_to is None else bisect(init.keys, item_to)
 
-            extend_lo = not init.is_leaf and (item_from is None or lo == len(init.keys) or init.keys[lo] > item_from)
-            if not reverse and extend_lo:
+            extend = not init.is_leaf and (item_from is None or lo == len(init.keys) or init.keys[lo] > item_from)
+            if not reverse and extend:
                 await travel(await get_child(lo))
 
             for i in range(lo, hi) if not reverse else reversed(range(lo, hi)):
@@ -667,7 +667,7 @@ class Engine(BasicEngine):
 
                 if not reverse and not init.is_leaf:
                     await travel(await get_child(i + 1))
-            if reverse and extend_lo:
+            if reverse and extend:
                 await travel(await get_child(lo))
 
         await travel(self.root)
