@@ -22,13 +22,13 @@ MIN_DEGREE = 64
 
 
 class BasicEngine:
-    # deal with basic methods
+    # 处理基础事务
     def __init__(self, filename: str):
         if not isfile(filename):
             with open(filename, 'wb') as file:
                 # indicator
                 file.write(b'\x00')
-                # root address
+                # root地址
                 file.write(pack('Q', 9))
                 self.root = IndexNode(is_leaf=True)
                 self.root.dump(file)
@@ -70,7 +70,6 @@ class BasicEngine:
     def free(self, ptr: int, size: int):
         self.allocator.free(ptr, size)
 
-    # load a proper state, I call it "time_travel"
     def time_travel(self, token: Task, node: IndexNode):
         address = node.nth_value_ads(0)
         for i in range(len(node.ptrs_value)):
@@ -91,7 +90,6 @@ class BasicEngine:
             self.task_que.clean()
 
     # cum = cumulation
-    # the common part of operations that change the B-Tree index: releases nodes and dispatch write commands
     def do_cum(self, token: Task, free_nodes, command_map):
         for node in free_nodes:
             self.free(node.ptr, node.size)
@@ -109,7 +107,7 @@ class BasicEngine:
                 if not cancel:
                     cancel = self.task_que.is_canceled(token, ptr)
                 if not cancel:
-                    # ensure it will never happen that two threads write the same area, which causes dead lock
+                    # 确保边界不相连
                     self.on_interval = (ptr - 1, ptr + len(data) + 1)
                     await self.async_file.write(ptr, data)
                     self.on_interval = None
@@ -119,7 +117,7 @@ class BasicEngine:
         if not self.on_write:
             self.on_write = True
             ensure_future(coro())
-        # sort the write commands by ptr and token.id
+        # 按ptr和token.id排序
         self.command_que.append((ptr, token, data, depend))
         token.command_num += 1
 
@@ -150,7 +148,7 @@ class BasicEngine:
 
 
 class Engine(BasicEngine):
-    # B-Tree Core
+    # B-Tree核心
     def __init__(self, filename: str):
         temp = '__' + filename
         if not isfile(temp):
@@ -193,7 +191,7 @@ class Engine(BasicEngine):
             else:
                 return self.a_command_done(token)
 
-        # root ptrs is always up-to-date, we don't need to find a state here
+        # root ptrs实时更新
         index = bisect(self.root.keys, key)
         if index - 1 >= 0 and self.root.keys[index - 1] == key:
             ptr = self.root.ptrs_value[index - 1]
@@ -217,30 +215,28 @@ class Engine(BasicEngine):
             self.file.seek(ptr)
             org_val = ValueNode(file=self.file)
             if org_val.value != value:
-                # write a new Value node in the tail of DB file
+                # 文件尾写入新Val
                 val = ValueNode(key, value)
                 self.file.seek(self.async_file.size)
                 val.dump(self.file)
                 self.async_file.size += val.size
-                # set the indicator of original value node to 0, it means deletion
+                # 状态设为0
                 self.file.seek(org_val.ptr)
                 self.file.write(pack('B', 0))
 
-                # release node
+                # 释放
                 token.free_param = lambda: self.free(org_val.ptr, org_val.size)
-                # sync states and RAM
+                # 同步
                 self.task_que.set(token, address, org_val.ptr, val.ptr)
-                # dispatch write command
+                # 命令
                 self.ensure_write(token, address, pack('Q', val.ptr), depend)
             self.do_cum(token, free_nodes, command_map)
 
-        # address = ptr of ptr
-        # address is where ptr is in HDD
         def split(address: int, par: IndexNode, child_index: int, child: IndexNode, depend: int):
             org_par = par.clone()
             org_child = child.clone()
 
-            # pass half data to sibling
+            # 一半数据给sibling
             mi = (len(child.keys) - 1) // 2 + 1
             sibling = IndexNode(is_leaf=child.is_leaf)
             sibling.keys = child.keys[mi:]
@@ -251,11 +247,11 @@ class Engine(BasicEngine):
                 sibling.ptrs_child = child.ptrs_child[mi:]
                 del child.ptrs_child[mi:]
 
-            # parent needs another key
+            # parent需一个值
             par.keys.insert(child_index, child.keys.pop())
             par.ptrs_value.insert(child_index, child.ptrs_value.pop())
 
-            # allocate HDD space
+            # 分配空间
             child_b = bytes(child)
             sibling_b = bytes(sibling)
             child.ptr = self.malloc(child.size)
@@ -265,35 +261,35 @@ class Engine(BasicEngine):
             par.ptrs_child.insert(child_index + 1, sibling.ptr)
             par_b = bytes(par)
             par.ptr = self.malloc(par.size)
-            # data in RAM is up-to-date
+            # 更新完毕
 
-            # release
+            # 释放
             free_nodes.extend((org_par, org_child))
-            # sync
+            # 同步
             _ = None
             for ptr, head, tail in ((address, org_par.ptr, par.ptr),
                                     (org_par.ptr, org_par, _), (org_child.ptr, org_child, _),
                                     (par.ptr, _, par), (child.ptr, _, child), (sibling.ptr, _, sibling)):
                 self.task_que.set(token, ptr, head, tail)
-            # commands
+            # 命令
             command_map.update({address: (pack('Q', par.ptr), depend),
                                 par.ptr: par_b, child.ptr: child_b, sibling.ptr: sibling_b})
 
         cursor = self.root
         address = 1
         depend = 0
-        # root is full
+        # root准满载
         if len(cursor.keys) == 2 * MIN_DEGREE - 1:
-            # create a new root
+            # 新建root
             root = IndexNode(is_leaf=False)
             root.ptrs_child.append(self.root.ptr)
             split(address, root, 0, self.root, depend)
             self.root = cursor = root
 
-        # do until meet leaf
+        # 向下循环直到叶节点
         while not cursor.is_leaf:
             index = bisect(cursor.keys, key)
-            # check if key exist already
+            # 检查key是否已存在
             if cursor.keys[index - 1] == key:
                 return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], cursor.ptr)
 
@@ -311,7 +307,7 @@ class Engine(BasicEngine):
             if len(child.keys) == 2 * MIN_DEGREE - 1:
                 split(address, cursor, index, child, depend)
                 if cursor.keys[index] < key:
-                    # path is moved to sibling
+                    # 路径转移至sibling，且必存在于task_que
                     index += 1
                     ptr = cursor.ptrs_child[index]
                     child = self.task_que.get(token, ptr)
@@ -320,9 +316,9 @@ class Engine(BasicEngine):
             depend = cursor.ptr
             cursor = child
 
-        # arrive leaf
+        # 到达叶节点
         index = bisect(cursor.keys, key)
-        # cursor might be leaf and empty
+        # cursor可能是root且可能为空
         if cursor is self.root and cursor.keys and cursor.keys[index - 1] == key:
             return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], cursor.ptr)
 
@@ -337,21 +333,20 @@ class Engine(BasicEngine):
         cursor.ptrs_value.insert(index, val.ptr)
         cursor_b = bytes(cursor)
         cursor.ptr = self.malloc(cursor.size)
-        # data in RAM is up-to-date
+        # 更新完毕
 
-        # release
+        # 释放
         free_nodes.append(org_cursor)
-        # sync
+        # 同步
         _ = None
         for ptr, head, tail in ((address, org_cursor.ptr, cursor.ptr),
                                 (org_cursor.ptr, org_cursor, _), (cursor.ptr, _, cursor)):
             self.task_que.set(token, ptr, head, tail)
-        # command
+        # 命令
         command_map.update({address: (pack('Q', cursor.ptr), depend), cursor.ptr: cursor_b})
         self.do_cum(token, free_nodes, command_map)
 
     def remove(self, key):
-        # you should be very familiar with B-Tree algorithm, otherwise you cannot understand the code
         token = self.task_que.create(is_active=True)
         free_nodes = []
         command_map = {}
@@ -375,7 +370,7 @@ class Engine(BasicEngine):
             org_left = left_child.clone()
             org_right = right_child.clone()
 
-            # modify RAM
+            # 内存
             last_val_key = left_child.keys.pop()
             last_val_ptr = left_child.ptrs_value.pop()
             val_key = par.keys[val_index]
@@ -390,7 +385,7 @@ class Engine(BasicEngine):
                 last_ptr_child = left_child.ptrs_child.pop()
                 right_child.ptrs_child.insert(0, last_ptr_child)
 
-            # allocate HDD space
+            # 空间
             left_b = bytes(left_child)
             right_b = bytes(right_child)
             left_child.ptr = self.malloc(left_child.size)
@@ -400,18 +395,18 @@ class Engine(BasicEngine):
             par.ptrs_child[val_index + 1] = right_child.ptr
             par_b = bytes(par)
             par.ptr = self.malloc(par.size)
-            # data in RAM is up-to-date
+            # 更新完毕
 
-            # release space unneeded
+            # 释放
             free_nodes.extend((org_par, org_left, org_right))
-            # sync
+            # 同步
             _ = None
             for ptr, head, tail in ((address, org_par.ptr, par.ptr),
                                     (org_par.ptr, org_par, _), (par.ptr, _, par),
                                     (org_left.ptr, org_left, _), (left_child.ptr, _, left_child),
                                     (org_right.ptr, org_right, _), (right_child.ptr, _, right_child)):
                 self.task_que.set(token, ptr, head, tail)
-            # dispatch write command
+            # 命令
             command_map.update({address: (pack('Q', par.ptr), depend),
                                 par.ptr: par_b, left_child.ptr: left_b, right_child.ptr: right_b})
 
@@ -421,7 +416,7 @@ class Engine(BasicEngine):
             org_left = left_child.clone()
             org_right = right_child.clone()
 
-            # modify RAM
+            # 内存
             first_val_key = right_child.keys.pop(0)
             first_val_ptr = right_child.ptrs_value.pop(0)
             val_key = par.keys[val_index]
@@ -436,7 +431,7 @@ class Engine(BasicEngine):
                 first_ptr_child = right_child.ptrs_child.pop(0)
                 left_child.ptrs_child.append(first_ptr_child)
 
-            # allocate HDD space
+            # 空间
             left_b = bytes(left_child)
             right_b = bytes(right_child)
             left_child.ptr = self.malloc(left_child.size)
@@ -446,18 +441,18 @@ class Engine(BasicEngine):
             par.ptrs_child[val_index + 1] = right_child.ptr
             par_b = bytes(par)
             par.ptr = self.malloc(par.size)
-            # data in RAM is up-to-date
+            # 更新完毕
 
-            # release space unneeded
+            # 释放
             free_nodes.extend((org_par, org_left, org_right))
-            # sync
+            # 同步
             _ = None
             for ptr, head, tail in ((address, org_par.ptr, par.ptr),
                                     (org_par.ptr, org_par, _), (par.ptr, _, par),
                                     (org_left.ptr, org_left, _), (left_child.ptr, _, left_child),
                                     (org_right.ptr, org_right, _), (right_child.ptr, _, right_child)):
                 self.task_que.set(token, ptr, head, tail)
-            # dispatch write command
+            # 命令
             command_map.update({address: (pack('Q', par.ptr), depend),
                                 par.ptr: par_b, left_child.ptr: left_b, right_child.ptr: right_b})
 
@@ -466,7 +461,7 @@ class Engine(BasicEngine):
             org_par = par.clone()
             org_cursor = cursor.clone()
 
-            # modify RAM
+            # 内存
             val_key = par.keys.pop(val_index)
             val_ptr = par.ptrs_value.pop(val_index)
             del par.ptrs_child[val_index]
@@ -476,25 +471,25 @@ class Engine(BasicEngine):
             if not left_child.is_leaf:
                 cursor.ptrs_child = [*left_child.ptrs_child, *cursor.ptrs_child]
 
-            # allocate HDD space
+            # 空间
             cursor_b = bytes(cursor)
             cursor.ptr = self.malloc(cursor.size)
 
             par.ptrs_child[val_index] = cursor.ptr
             par_b = bytes(par)
             par.ptr = self.malloc(par.size)
-            # data in RAM is up-to-date
+            # 更新完毕
 
-            # release space unneeded
+            # 释放
             free_nodes.extend((org_par, org_cursor, left_child))
-            # sync
+            # 同步
             _ = None
             for ptr, head, tail in ((address, org_par.ptr, par.ptr),
                                     (org_par.ptr, org_par, _), (par.ptr, _, par),
                                     (org_cursor.ptr, org_cursor, _), (cursor.ptr, _, cursor),
                                     (left_child.ptr, left_child, _)):
                 self.task_que.set(token, ptr, head, tail)
-            # dispatch write command
+            # 命令
             command_map.update({address: (pack('Q', par.ptr), depend), par.ptr: par_b, cursor.ptr: cursor_b})
 
         def merge_right(address: int, par: IndexNode, val_index: int,
@@ -502,7 +497,7 @@ class Engine(BasicEngine):
             org_par = par.clone()
             org_cursor = cursor.clone()
 
-            # modify RAM
+            # 内存
             val_key = par.keys.pop(val_index)
             val_ptr = par.ptrs_value.pop(val_index)
             del par.ptrs_child[val_index + 1]
@@ -512,25 +507,25 @@ class Engine(BasicEngine):
             if not cursor.is_leaf:
                 cursor.ptrs_child.extend(right_child.ptrs_child)
 
-            # allocate HDD space
+            # 空间
             cursor_b = bytes(cursor)
             cursor.ptr = self.malloc(cursor.size)
 
             par.ptrs_child[val_index] = cursor.ptr
             par_b = bytes(par)
             par.ptr = self.malloc(par.size)
-            # data in RAM is up-to-date
+            # 更新完毕
 
-            # release space unneeded
+            # 释放
             free_nodes.extend((org_par, org_cursor, right_child))
-            # sync
+            # 同步
             _ = None
             for ptr, head, tail in ((address, org_par.ptr, par.ptr),
                                     (org_par.ptr, org_par, _), (par.ptr, _, par),
                                     (org_cursor.ptr, org_cursor, _), (cursor.ptr, _, cursor),
                                     (right_child.ptr, right_child, _)):
                 self.task_que.set(token, ptr, head, tail)
-            # dispatch write command
+            # 命令
             command_map.update({address: (pack('Q', par.ptr), depend), par.ptr: par_b, cursor.ptr: cursor_b})
 
         def travel(address: int, init: IndexNode, key, depend: int):
@@ -540,21 +535,21 @@ class Engine(BasicEngine):
                 org_init = init.clone()
                 self.file.seek(init.ptrs_value[index])
                 val = ValueNode(file=self.file)
-                # modify RAM
+                # 内存
                 del init.keys[index]
                 del init.ptrs_value[index]
-                # allocate HDD space
+                # 空间
                 init_b = bytes(init)
                 init.ptr = self.malloc(init.size)
-                # release space unneeded
+                # 释放
                 indicate(val)
                 free_nodes.append(org_init)
-                # sync
+                # 同步
                 _ = None
                 for ptr, head, tail in ((address, org_init.ptr, init.ptr),
                                         (org_init.ptr, org_init, _), (init.ptr, _, init)):
                     self.task_que.set(token, ptr, head, tail)
-                # dispatch write command
+                # 命令
                 command_map.update({address: (pack('Q', init.ptr), depend), init.ptr: init_b})
 
             def root_is_empty(successor: IndexNode):
@@ -563,47 +558,49 @@ class Engine(BasicEngine):
                 for ptr, head, tail in ((address, self.root.ptr, successor.ptr),
                                         (self.root.ptr, self.root, _), (successor.ptr, _, successor)):
                     self.task_que.set(token, ptr, head, tail)
-                command_map[address] = pack('Q', successor.ptr)
+                command_map.update({address: pack('Q', successor.ptr)})
                 self.root = successor
 
-            # find key
+            # 已定位
             if index >= 0 and init.keys[index] == key:
-                # in leaf
+                # 位于叶节点
                 if init.is_leaf:
                     return key_in_leaf()
-                # in inner nodes
+                # 位于内部节点
                 else:
                     left_ptr = init.ptrs_child[index]
                     left_child = fetch(left_ptr)
                     right_ptr = init.ptrs_child[index + 1]
                     right_child = fetch(right_ptr)
 
+                    # 左子节点 >= t
                     if len(left_child.keys) >= MIN_DEGREE:
                         rotate_left(address, init, index, left_child, right_child, depend)
                         return travel(init.nth_child_ads(index + 1), right_child, key, init.ptr)
-
+                    # 右子节点 >= t
                     elif len(right_child.keys) >= MIN_DEGREE:
                         rotate_right(address, init, index, left_child, right_child, depend)
                         return travel(init.nth_child_ads(index), left_child, key, init.ptr)
-
+                    # 左右子节点均 < t
                     else:
                         merge_left(address, init, index, left_child, right_child, depend)
                         if len(self.root.keys) == 0:
                             root_is_empty(right_child)
                         return travel(init.nth_child_ads(index), right_child, key, init.ptr)
-            # travel down
+            # 向下寻找
             elif not init.is_leaf:
                 index += 1
                 ptr = init.ptrs_child[index]
                 cursor = fetch(ptr)
 
+                # 目标 < t
                 if len(cursor.keys) < MIN_DEGREE:
                     left_sibling = right_sibling = None
 
                     if index - 1 >= 0:
                         left_ptr = init.ptrs_child[index - 1]
                         left_sibling = fetch(left_ptr)
-
+                        # 左sibling >= t
                         if len(left_sibling.keys) >= MIN_DEGREE:
                             rotate_left(address, init, index - 1, left_sibling, cursor, depend)
                             return travel(init.nth_child_ads(index), cursor, key, init.ptr)
@@ -611,11 +608,12 @@ class Engine(BasicEngine):
                     if index + 1 < len(init.ptrs_child):
                         right_ptr = init.ptrs_child[index + 1]
                         right_sibling = fetch(right_ptr)
-
+                        # 右sibling >= t
                         if len(right_sibling.keys) >= MIN_DEGREE:
                             rotate_right(address, init, index, cursor, right_sibling, depend)
                             return travel(init.nth_child_ads(index), cursor, key, init.ptr)
 
+                    # 无sibling >= t
                     if left_sibling:
                         index -= 1
                         merge_left(address, init, index, left_sibling, cursor, depend)
@@ -630,10 +628,6 @@ class Engine(BasicEngine):
 
     async def items(self, item_from=None, item_to=None, max_len=0):
         assert item_from <= item_to if item_from and item_to else True
-        if item_from is not None and item_from == item_to:
-            value = await self.get(item_from)
-            return [(item_from, value)]
-
         token = self.task_que.create(is_active=False)
         token.command_num += 1
         result = []
@@ -657,7 +651,7 @@ class Engine(BasicEngine):
             lo = 0 if item_from is None else bisect_left(init.keys, item_from)
             hi = len(init.keys) if item_to is None else bisect(init.keys, item_to)
 
-            # check lo_key predecessor contains desired keys
+            # 检查lo_key child是否在范围内
             if not init.is_leaf and (item_from is None or lo == len(init.keys) or init.keys[lo] > item_from):
                 child = await get_child(lo)
                 await travel(child)
