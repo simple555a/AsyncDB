@@ -6,7 +6,7 @@ from random import randint
 from AsyncDB import AsyncDB
 
 T = 10000
-M = 7000
+M = 10000
 NAME = 'Test.db'
 
 
