@@ -42,8 +42,12 @@ class AsyncDB:
         return await self.engine.items(item_from, item_to, max_len, reverse)
 
     async def close(self):
+        self.assert_open()
         self.open = False
-        await ensure_future(self.engine.close())
+        if self.engine.task_que.que:
+            await self.engine.lock.acquire()
+            await ensure_future(self.engine.lock.acquire())
+        self.engine.close()
 
     def assert_open(self):
         if not self.open:

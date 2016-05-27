@@ -1,4 +1,5 @@
 from asyncio import ensure_future
+from asyncio.locks import Lock
 from bisect import insort, bisect, bisect_left
 from collections import UserList
 from contextlib import suppress
@@ -45,12 +46,13 @@ class BasicEngine:
                     file.write(b'\x00')
 
         self.allocator = Allocator()
-        self.file = open(filename, 'rb+', buffering=0)
         self.async_file = AsyncFile(filename)
-        self.on_write = False
+        self.command_que = SortedList()
+        self.file = open(filename, 'rb+', buffering=0)
+        self.lock = Lock()
         # on_interval: (begin, end)
         self.on_interval = None
-        self.command_que = SortedList()
+        self.on_write = False
         self.task_que = TaskQue()
 
     def malloc(self, size: int) -> int:
@@ -88,6 +90,8 @@ class BasicEngine:
         token.command_num -= 1
         if token.command_num == 0:
             self.task_que.clean()
+            if not self.task_que.que and self.lock.locked():
+                self.lock.release()
 
     # cum = cumulation
     def do_cum(self, token: Task, free_nodes, command_map):
@@ -121,7 +125,7 @@ class BasicEngine:
         self.command_que.append((ptr, token, data, depend))
         token.command_num += 1
 
-    async def close(self):
+    def close(self):
         self.file.seek(0)
         self.file.write(b'\x01')
         self.file.close()
