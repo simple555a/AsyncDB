@@ -1,7 +1,7 @@
-[中文版](#CHN)
+[中文](#CHN)
 
 # AsyncDB
-When traditional databases encounter concurrency problems, multiple threads and sync io is a reasonable solution and is
+When traditional databases encounter concurrency problems, multiple threads and SyncIO is a reasonable solution and is
 widely used. However, the DB tries to solve the problem by Python Coroutine and AsyncIO.
 
 The DB can get some optimizations that cannot be done with traditional databases, by modifying the B-Tree algorithm.
@@ -42,7 +42,7 @@ await db.close()
 
 There is no **restriction** of types of keys and values.
 
-###<a name="CHN">中文版</a>
+###<a name="CHN">中文</a>
 传统数据库面对高并发，采用多线程和同步IO。本作采用协程和异步IO，基于Python开发。
 
 通过对B-Tree进行调整，能做到许多传统数据库做不到的优化。
