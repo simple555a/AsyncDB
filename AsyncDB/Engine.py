@@ -19,7 +19,6 @@ class SortedList(UserList):
 
 
 MIN_DEGREE = 64
-TEMP = '__items__'
 
 
 class BasicEngine:
@@ -55,7 +54,7 @@ class BasicEngine:
         self.task_que = TaskQue()
 
     def malloc(self, size: int) -> int:
-        def is_inside(ptr: int) -> bool:
+        def is_inside(ptr: int):
             begin, end = self.on_interval
             return begin <= ptr <= end or begin <= ptr + size <= end
 
@@ -133,8 +132,9 @@ class BasicEngine:
 
     @staticmethod
     def repair(filename: str):
+        temp = '__' + filename
         size = getsize(filename)
-        with open(filename, 'rb') as file, open('$' + TEMP, 'wb') as items:
+        with open(filename, 'rb') as file, open('$' + temp, 'wb') as items:
             file.seek(9)
             while True:
                 if file.tell() == size:
@@ -146,28 +146,29 @@ class BasicEngine:
                     item = load(file)
                     if isinstance(item, tuple) and len(item) == 2:
                         dump(item, items)
-        rename('$' + TEMP, TEMP)
+        rename('$' + temp, temp)
 
 
 class Engine(BasicEngine):
     # B-Tree Core
     def __init__(self, filename: str):
-        if not isfile(TEMP):
+        temp = '__' + filename
+        if not isfile(temp):
             super().__init__(filename)
 
-        if isfile(TEMP):
+        if isfile(temp):
             if isfile(filename):
                 remove(filename)
 
             super().__init__(filename)
-            with open(TEMP, 'rb') as items:
+            with open(temp, 'rb') as items:
                 while True:
                     try:
                         item = load(items)
                         self.set(*item)
                     except EOFError:
                         break
-            remove(TEMP)
+            remove(temp)
 
     async def get(self, key):
         token = self.task_que.create(is_active=False)
