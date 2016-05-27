@@ -205,7 +205,7 @@ class Engine(BasicEngine):
         else:
             return self.a_command_done(token)
 
-    def set(self, key, value):
+    async def set(self, key, value):
         token = self.task_que.create(is_active=True)
         free_nodes = []
         # command_map: {..., ptr: data OR (data, depend)}
@@ -346,7 +346,7 @@ class Engine(BasicEngine):
         command_map.update({address: (pack('Q', cursor.ptr), depend), cursor.ptr: cursor_b})
         self.do_cum(token, free_nodes, command_map)
 
-    def remove(self, key):
+    async def pop(self, key):
         token = self.task_que.create(is_active=True)
         free_nodes = []
         command_map = {}
@@ -551,6 +551,7 @@ class Engine(BasicEngine):
                     self.task_que.set(token, ptr, head, tail)
                 # 命令
                 command_map.update({address: (pack('Q', init.ptr), depend), init.ptr: init_b})
+                return val.value
 
             def root_is_empty(successor: IndexNode):
                 free_nodes.append(self.root)
@@ -626,7 +627,7 @@ class Engine(BasicEngine):
         travel(1, self.root, key, 0)
         self.do_cum(token, free_nodes, command_map)
 
-    async def items(self, item_from=None, item_to=None, max_len=0):
+    async def items(self, item_from=None, item_to=None, max_len=0, reverse=False):
         assert item_from <= item_to if item_from and item_to else True
         token = self.task_que.create(is_active=False)
         token.command_num += 1
@@ -651,20 +652,24 @@ class Engine(BasicEngine):
             lo = 0 if item_from is None else bisect_left(init.keys, item_from)
             hi = len(init.keys) if item_to is None else bisect(init.keys, item_to)
 
-            # 检查lo_key child是否在范围内
-            if not init.is_leaf and (item_from is None or lo == len(init.keys) or init.keys[lo] > item_from):
-                child = await get_child(lo)
-                await travel(child)
+            extend = not init.is_leaf and (item_from is None or lo == len(init.keys) or init.keys[lo] > item_from)
+            if not reverse and extend:
+                await travel(await get_child(lo))
 
-            for i in range(lo, hi):
+            for i in range(lo, hi) if not reverse else reversed(range(lo, hi)):
+                if reverse and not init.is_leaf:
+                    await travel(await get_child(i + 1))
+
                 if max_len and len(result) >= max_len:
                     return
                 item = await get_item(i)
                 result.append(item)
 
-                if not init.is_leaf:
-                    child = await get_child(i + 1)
-                    await travel(child)
+                if not reverse and not init.is_leaf:
+                    await travel(await get_child(i + 1))
+
+            if reverse and extend:
+                await travel(await get_child(lo))
 
         await travel(self.root)
         self.a_command_done(token)

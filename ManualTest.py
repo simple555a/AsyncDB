@@ -9,19 +9,18 @@ NAME = 'Test.db'
 async def write():
     db = AsyncDB(NAME)
     for i in range(M):
-        db[i] = i
+        await db.set(i, i)
         print('set', i)
 
 
 async def read():
     db = AsyncDB(NAME)
     for i in range(M):
-        value = await db[i]
+        value = await db.get(i)
         print('get', value)
 
 
 def main():
-    # 手动结束进程以测试原子性
     loop = get_event_loop()
     loop.run_until_complete(write())
     # loop.run_until_complete(read())

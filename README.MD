@@ -12,7 +12,7 @@ The DB can get some optimizations that cannot be done with traditional databases
 * All keys must be "bisectable" i.e. can be sorted by bisect.insort.
 * There is a cache inside. The result can be a reference of the previous result.
 * The DB guarantees ACID properties with software failures but hardware.
-* If the DB closes unexpectedly, it will repair itself next time, which takes time.
+* If the DB gets closed unexpectedly, it will repair itself next time, which takes time.
 * The code is shared under the MIT license.
 
 ## Usage
@@ -24,23 +24,16 @@ from AsyncDB import AsyncDB
 # Open/Create a DB
 db = AsyncDB('Test.db')
 
-# Write
-db['foo'] = 'bar'
+db.set('key_bisectable', 'value')
 
-# Read
-val = await db['foo']
+val = await db.get('key_bisectable')
 
-# Del
-del db['foo']
+val = await db.pop('key_bisectable')
 
-# Iterate
-items = await db.items(item_from='start', item_to='end', max_len=1024)
+items = await db.items(item_from='key_start', item_to='key_end', max_len=1024, reverse=False)
 
-# Close
 await db.close()
 ```
-
-There is no **restriction** of types of keys and values.
 
 ###<a name="CHN">中文</a>
 传统数据库面对高并发，采用多线程和同步IO。本作采用协程和异步IO，基于Python开发。
@@ -55,30 +48,3 @@ There is no **restriction** of types of keys and values.
 * ACID，软件可以在任意时刻崩溃，数据都是安全的，但对硬件断电之类的情况不做保证。
 * 非正常关闭，下一次启动，程序会自动修复数据库，这会相当费时。
 * 以MIT协议发布。
-
-## 使用方法
-复制AsyncDB文件夹到到程序根目录。
-
-```Python
-from AsyncDB import AsyncDB
-
-# 打开或建立一个数据库
-db = AsyncDB('Test.db')
-
-# 写入
-db['foo'] = 'bar'
-
-# 读取
-val = await db['foo']
-
-# 删除
-del db['foo']
-
-# 遍历
-items = await db.items(item_from='start', item_to='end', max_len=1024)
-
-# 关闭
-await db.close()
-```
-
-本数据库对key和value的类型没有**限制**。

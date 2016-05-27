@@ -1,11 +1,10 @@
 from collections import UserDict
-from collections.abc import Awaitable
 
 from .Engine import Engine
 
 
 class Cache(UserDict):
-    def __init__(self, max_len=1024):
+    def __init__(self, max_len=128):
         super().__init__()
         self.max_len = max_len
 
@@ -14,34 +13,37 @@ class Cache(UserDict):
         if len(self.data) > self.max_len:
             self.data.popitem()
 
-    def __delitem__(self, key):
-        if key in self.data:
-            del self.data[key]
-
 
 class AsyncDB:
     def __init__(self, filename: str):
         self.cache = Cache()
         self.engine = Engine(filename)
+        self.open = True
 
-    def __getitem__(self, key) -> Awaitable:
-        async def coro():
-            return self.cache[key] if key in self.cache else await self.engine.get(key)
+    async def get(self, key):
+        self.assert_open()
+        return self.cache[key] if key in self.cache else await self.engine.get(key)
 
-        return coro()
+    async def set(self, key, value):
+        self.assert_open()
+        if key not in self.cache or self.cache[key] != value:
+            self.cache[key] = value
+            await self.engine.set(key, value)
 
-    def __setitem__(self, key, value):
-        if key in self.cache and self.cache[key] == value:
-            return
-        self.cache[key] = value
-        self.engine.set(key, value)
+    async def pop(self, key):
+        self.assert_open()
+        if key in self.cache:
+            del self.cache[key]
+        return await self.engine.pop(key)
 
-    def __delitem__(self, key):
-        del self.cache[key]
-        self.engine.remove(key)
-
-    def items(self, item_from=None, item_to=None, max_len=0) -> Awaitable:
-        return self.engine.items(item_from, item_to, max_len)
+    async def items(self, item_from=None, item_to=None, max_len=0, reverse=False):
+        self.assert_open()
+        return await self.engine.items(item_from, item_to, max_len, reverse)
 
     async def close(self):
+        self.open = False
         await self.engine.close()
+
+    def assert_open(self):
+        if not self.open:
+            raise Exception
