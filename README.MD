@@ -1,5 +1,3 @@
-[中文](#CHN)
-
 # AsyncDB
 When traditional databases encounter concurrency problems, multiple threads and SyncIO is a reasonable solution and is
 widely used. However, the DB tries to solve the problem by Python Coroutine and AsyncIO.
@@ -23,18 +21,18 @@ from AsyncDB import AsyncDB
 
 db = AsyncDB('Test.db')
 
-db.set('key_bisectable', 'value')
+db.set('key', 'value')
 
-val = await db.get('key_bisectable')
+val = await db.get('key')
 
-val = await db.pop('key_bisectable')
+val = await db.pop('key')
 
 items = await db.items(item_from='begin', item_to='end', max_len=1024, reverse=False)
 
 await db.close()
 ```
 
-###<a name="CHN">中文</a>
+###中文
 传统数据库面对高并发，采用多线程和同步IO。本作采用协程和异步IO，基于Python开发。
 
 通过对B-Tree进行调整，能做到许多传统数据库做不到的优化。

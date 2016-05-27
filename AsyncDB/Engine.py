@@ -122,7 +122,6 @@ class BasicEngine:
         token.command_num += 1
 
     async def close(self):
-        await self.task_que.close()
         self.file.seek(0)
         self.file.write(b'\x01')
         self.file.close()

@@ -1,3 +1,4 @@
+from asyncio import ensure_future
 from collections import UserDict
 
 from .Engine import Engine
@@ -42,7 +43,7 @@ class AsyncDB:
 
     async def close(self):
         self.open = False
-        await self.engine.close()
+        await ensure_future(self.engine.close())
 
     def assert_open(self):
         if not self.open:

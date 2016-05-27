@@ -1,4 +1,3 @@
-from asyncio.locks import Lock
 from bisect import bisect
 from collections import deque, namedtuple
 from collections.abc import Callable
@@ -25,7 +24,6 @@ class Task:
 class TaskQue:
     # 通过Queue确保异步下的ACID
     def __init__(self):
-        self.lock = Lock()
         self.next_id = 0
         self.que = deque()
         # virtual_map: {..., ptr: ([..., id], [..., memo])}
@@ -37,8 +35,6 @@ class TaskQue:
             token = Task(self.next_id, is_active)
             self.next_id += 1
             self.que.append(token)
-            if not self.lock.locked():
-                self.lock.acquire()
         else:
             token = self.que[-1]
         return token
@@ -118,8 +114,3 @@ class TaskQue:
         else:
             # 重置
             self.next_id = 0
-            if self.lock.locked():
-                self.lock.release()
-
-    async def close(self):
-        await self.lock

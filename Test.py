@@ -87,7 +87,7 @@ async def acid_t():
 
 def main():
     loop = get_event_loop()
-    for i in range(100):
+    for i in range(10):
         loop.run_until_complete(acid_t())
         remove(NAME)
 
