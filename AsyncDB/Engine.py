@@ -1,5 +1,4 @@
-from asyncio import ensure_future
-from asyncio.locks import Lock
+from asyncio import ensure_future, Lock
 from bisect import insort, bisect, bisect_left
 from collections import UserList
 from contextlib import suppress
@@ -208,7 +207,7 @@ class Engine(BasicEngine):
         else:
             return self.a_command_done(token)
 
-    async def set(self, key, value):
+    def set(self, key, value):
         token = self.task_que.create(is_active=True)
         free_nodes = []
         # command_map: {..., ptr: data OR (data, depend)}
@@ -349,7 +348,7 @@ class Engine(BasicEngine):
         command_map.update({address: (pack('Q', cursor.ptr), depend), cursor.ptr: cursor_b})
         self.do_cum(token, free_nodes, command_map)
 
-    async def pop(self, key):
+    def pop(self, key):
         token = self.task_que.create(is_active=True)
         free_nodes = []
         command_map = {}

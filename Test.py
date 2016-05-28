@@ -14,11 +14,11 @@ async def acid_t():
     if isfile(NAME):
         remove(NAME)
 
-    cmp = {}
+    cp = {}
     db = AsyncDB(NAME)
 
     async def compare(key, expect_value):
-        db_value = await db.get(key)
+        db_value = await db[key]
         assert db_value == expect_value
 
     for i in range(T):
@@ -28,57 +28,57 @@ async def acid_t():
             rand_value = randint(0, M)
             print('set', rand_key, 'to', rand_value)
 
-            cmp[rand_key] = rand_value
-            ensure_future(db.set(rand_key, rand_value))
+            cp[rand_key] = rand_value
+            db[rand_key] = rand_value
 
         # 删
         if randint(0, 1):
             rand_key = randint(0, M)
             print('del', rand_key)
 
-            if rand_key in cmp:
-                del cmp[rand_key]
-            ensure_future(db.pop(rand_key))
+            if rand_key in cp:
+                del cp[rand_key]
+            db.pop(rand_key)
 
         # 读
         if randint(0, 1):
             rand_key = randint(0, M)
-            expect_value = cmp.get(rand_key)
+            expect_value = cp.get(rand_key)
 
             ensure_future(compare(rand_key, expect_value))
-    await sleep(0)
+        await sleep(0)
     # 遍历
-    cmp_items = list(cmp.items())
-    for key, value in cmp_items:
-        db_value = await db.get(key)
+    cp_items = list(cp.items())
+    for key, value in cp_items:
+        db_value = await db[key]
         assert db_value == value
 
     items = await db.items()
     for key, value in items:
-        assert value == cmp[key]
-    assert len(items) == len(cmp_items)
+        assert value == cp[key]
+    assert len(items) == len(cp_items)
     print('iter OK')
 
     # 参数
-    cmp_items.sort()
-    max_i = len(cmp_items) - 1
+    cp_items.sort()
+    max_i = len(cp_items) - 1
     i_from = randint(0, max_i - 1)
     i_to = randint(i_from + 1, max_i)
-    sub_items = cmp_items[i_from:i_to]
+    sub_items = cp_items[i_from:i_to]
 
     items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0])
     assert items == sub_items
     items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0], reverse=True)
     assert items == sorted(sub_items, reverse=True)
-    expect_len = randint(1, M)
-    items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0], max_len=expect_len)
-    assert len(items) == min(expect_len, len(sub_items))
+    param_len = randint(1, M)
+    items = await db.items(item_from=sub_items[0][0], item_to=sub_items[-1][0], max_len=param_len)
+    assert len(items) == min(param_len, len(sub_items))
     print('params OK')
     await db.close()
 
     db = AsyncDB(NAME)
-    for key, value in cmp_items:
-        db_value = await db.get(key)
+    for key, value in cp_items:
+        db_value = await db[key]
         assert db_value == value
     await db.close()
     print('ACID OK')
