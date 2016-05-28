@@ -23,7 +23,7 @@ db = AsyncDB('Test.db')
 
 db['key'] = 'value'
 
-val = await db.get('key')
+val = await db['key']
 
 val = db.pop('key')
 
