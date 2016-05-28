@@ -52,7 +52,7 @@ class Allocator:
                 if size_exist not in self.size_map:
                     del self.size_que[index]
                 del self.ptr_map[ptr]
-                # 剩余空间写回
+                # 空间写回
                 self.free(ptr + size, size_exist - size)
                 return ptr
 
