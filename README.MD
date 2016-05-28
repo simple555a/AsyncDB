@@ -23,9 +23,9 @@ db = AsyncDB('Test.db')
 
 db['key'] = 'value'
 
-val = await db['key']
-
 val = db.pop('key')
+
+val = await db['key']
 
 items = await db.items(item_from='begin', item_to='end', max_len=1024, reverse=False)
 
