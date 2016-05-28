@@ -23,13 +23,13 @@ MIN_DEGREE = 64
 
 
 class BasicEngine:
-    # 处理基础事务
+    # 基础事务
     def __init__(self, filename: str):
         if not isfile(filename):
             with open(filename, 'wb') as file:
                 # indicator
                 file.write(b'\x00')
-                # root地址
+                # root
                 file.write(pack('Q', 9))
                 self.root = IndexNode(is_leaf=True)
                 self.root.dump(file)
@@ -50,6 +50,8 @@ class BasicEngine:
         self.command_que = SortedList()
         self.file = open(filename, 'rb+', buffering=0)
         self.lock = Lock()
+        # lock_map: {..., ptr: lock}
+        self.lock_map = {}
         # on_interval: (begin, end)
         self.on_interval = None
         self.on_write = False
@@ -71,6 +73,22 @@ class BasicEngine:
 
     def free(self, ptr: int, size: int):
         self.allocator.free(ptr, size)
+
+    async def acquire(self, ptr: int, is_active: bool) -> Lock:
+        prev_lock = self.lock_map.get(ptr)
+        if prev_lock:
+            await prev_lock.acquire()
+
+        if is_active:
+            curr_lock = Lock()
+            await curr_lock.acquire()
+            self.lock_map[ptr] = curr_lock
+            return curr_lock
+
+    def release(self, ptr: int, lock: Lock):
+        lock.release()
+        if self.lock_map[ptr] is lock:
+            del self.lock_map[ptr]
 
     def time_travel(self, token: Task, node: IndexNode):
         address = node.nth_value_ads(0)
