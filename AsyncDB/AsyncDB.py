@@ -1,4 +1,3 @@
-from asyncio import ensure_future
 from collections import UserDict
 
 from .Engine import Engine
@@ -46,7 +45,7 @@ class AsyncDB:
         self.open = False
         if self.engine.task_que.que:
             await self.engine.lock.acquire()
-            await ensure_future(self.engine.lock.acquire())
+            await self.engine.lock.acquire()
         self.engine.close()
 
     def assert_open(self):
