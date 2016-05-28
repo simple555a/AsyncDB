@@ -2,16 +2,16 @@
 When traditional databases encounter concurrency problems, multiple threads and SyncIO is a reasonable solution and is
 widely used. However, the DB tries to solve the problem by Python Coroutine and AsyncIO.
 
-The DB can get some optimizations that cannot be done with traditional databases, by modifying the B-Tree algorithm.
+The DB can get some optimizations that cannot be done with traditional databases, by modifying B-Tree algorithm.
 
 ## Attention
 * Python 3.5.1 or later is required and no other dependency.
 * Only compatible with coroutine environment.
 * All keys must be "bisectable" i.e. can be sorted by bisect.insort.
-* There is a cache inside. The result can be a reference of the previous result.
+* There is cache inside. The result can be a reference of the previous result.
 * The DB guarantees ACID properties with software failures but hardware.
 * If the DB gets closed unexpectedly, it will repair itself next time, which takes time.
-* The code is shared under MIT license.
+* The source code is shared under MIT license.
 
 ## Usage
 Copy "AsyncDB" folder to the root of your program.
