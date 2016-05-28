@@ -50,8 +50,6 @@ class BasicEngine:
         self.command_que = SortedList()
         self.file = open(filename, 'rb+', buffering=0)
         self.lock = Lock()
-        # lock_map: {..., ptr: lock}
-        self.lock_map = {}
         # on_interval: (begin, end)
         self.on_interval = None
         self.on_write = False
@@ -73,24 +71,6 @@ class BasicEngine:
 
     def free(self, ptr: int, size: int):
         self.allocator.free(ptr, size)
-
-    async def acquire(self, ptr: int, modify=False) -> Lock:
-        if not modify:
-            lock = self.lock_map.get(ptr)
-            if lock:
-                await lock.acquire()
-                lock.release()
-        else:
-            await self.acquire(ptr, modify=False)
-            lock = Lock()
-            await lock.acquire()
-            self.lock_map[ptr] = lock
-            return lock
-
-    def release(self, ptr: int, lock: Lock):
-        lock.release()
-        if self.lock_map[ptr] is lock:
-            del self.lock_map[ptr]
 
     def time_travel(self, token: Task, node: IndexNode):
         address = node.nth_value_ads(0)

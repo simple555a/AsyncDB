@@ -46,8 +46,7 @@ async def acid_t():
             expect_value = cmp.get(rand_key)
 
             ensure_future(compare(rand_key, expect_value))
-        await sleep(0)
-
+    await sleep(0)
     # 遍历
     cmp_items = list(cmp.items())
     for key, value in cmp_items:
