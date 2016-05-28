@@ -11,7 +11,7 @@ The DB can get some optimizations that cannot be done with traditional databases
 * There is a cache inside. The result can be a reference of the previous result.
 * The DB guarantees ACID properties with software failures but hardware.
 * If the DB gets closed unexpectedly, it will repair itself next time, which takes time.
-* The code is shared under the MIT license.
+* The code is shared under MIT license.
 
 ## Usage
 Copy "AsyncDB" folder to the root of your program.
