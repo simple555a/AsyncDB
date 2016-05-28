@@ -74,16 +74,18 @@ class BasicEngine:
     def free(self, ptr: int, size: int):
         self.allocator.free(ptr, size)
 
-    async def acquire(self, ptr: int, is_active: bool) -> Lock:
-        prev_lock = self.lock_map.get(ptr)
-        if prev_lock:
-            await prev_lock.acquire()
-
-        if is_active:
-            curr_lock = Lock()
-            await curr_lock.acquire()
-            self.lock_map[ptr] = curr_lock
-            return curr_lock
+    async def acquire(self, ptr: int, modify=False) -> Lock:
+        if not modify:
+            lock = self.lock_map.get(ptr)
+            if lock:
+                await lock.acquire()
+                lock.release()
+        else:
+            await self.acquire(ptr, modify=False)
+            lock = Lock()
+            await lock.acquire()
+            self.lock_map[ptr] = lock
+            return lock
 
     def release(self, ptr: int, lock: Lock):
         lock.release()
