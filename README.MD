@@ -21,11 +21,11 @@ from AsyncDB import AsyncDB
 
 db = AsyncDB('Test.db')
 
-db.set('key', 'value')
+db['key'] = 'value'
 
 val = await db.get('key')
 
-val = await db.pop('key')
+val = db.pop('key')
 
 items = await db.items(item_from='begin', item_to='end', max_len=1024, reverse=False)
 

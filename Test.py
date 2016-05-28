@@ -26,7 +26,7 @@ async def acid_t():
         if randint(0, 1):
             rand_key = randint(0, M)
             rand_value = randint(0, M)
-            print('set', rand_key, 'to', rand_value)
+            print('set', rand_key)
 
             cp[rand_key] = rand_value
             db[rand_key] = rand_value
@@ -46,7 +46,8 @@ async def acid_t():
             expect_value = cp.get(rand_key)
 
             ensure_future(compare(rand_key, expect_value))
-        await sleep(0)
+            await sleep(0)
+
     # 遍历
     cp_items = list(cp.items())
     for key, value in cp_items:
@@ -86,7 +87,7 @@ async def acid_t():
 
 def main():
     loop = get_event_loop()
-    for i in range(10):
+    for i in range(100):
         loop.run_until_complete(acid_t())
         remove(NAME)
 
