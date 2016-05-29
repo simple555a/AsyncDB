@@ -1,4 +1,4 @@
-from asyncio import ensure_future, Lock
+from asyncio import ensure_future, Lock, Condition
 from bisect import insort, bisect, bisect_left
 from collections import UserList
 from contextlib import suppress
@@ -54,6 +54,9 @@ class BasicEngine:
         self.on_write = False
         self.task_que = TaskQue()
 
+        self.condition = Condition()
+        self.is_changing = False
+
     def malloc(self, size: int) -> int:
         def is_inside(ptr: int):
             begin, end = self.on_interval
@@ -105,6 +108,7 @@ class BasicEngine:
     def ensure_write(self, token: Task, ptr: int, data: bytes, depend=0):
         async def coro():
             while self.command_que:
+                await self.wait()
                 ptr, token, data, depend = self.command_que.pop(0)
                 cancel = depend and self.task_que.is_canceled(token, depend)
                 if not cancel:
@@ -123,6 +127,19 @@ class BasicEngine:
         # 按ptr和token.id排序
         self.command_que.append((ptr, token, data, depend))
         token.command_num += 1
+
+    async def wait(self):
+        if self.is_changing:
+            if not self.condition.locked():
+                await self.condition.acquire()
+            await self.condition.wait()
+
+    async def notify_all(self):
+        self.is_changing = False
+        if not self.condition.locked():
+            await self.condition.acquire()
+        self.condition.notify_all()
+        self.condition.release()
 
     def close(self):
         self.file.seek(0)
@@ -173,6 +190,7 @@ class Engine(BasicEngine):
     async def get(self, key):
         token = self.task_que.create(is_active=False)
         token.command_num += 1
+        await self.wait()
 
         async def travel(ptr: int):
             init = self.task_que.get(token, ptr, is_active=False)
@@ -207,24 +225,23 @@ class Engine(BasicEngine):
         else:
             return self.a_command_done(token)
 
-    def set(self, key, value):
+    async def set(self, key, value):
         token = self.task_que.create(is_active=True)
         free_nodes = []
         # command_map: {..., ptr: data OR (data, depend)}
         command_map = {}
+        await self.wait()
+        self.is_changing = True
 
-        def replace(address: int, ptr: int, depend: int):
-            self.file.seek(ptr)
-            org_val = ValueNode(file=self.file)
+        async def replace(address: int, ptr: int, depend: int):
+            org_val = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))
             if org_val.value != value:
                 # 文件尾写入新Val
                 val = ValueNode(key, value)
-                self.file.seek(self.async_file.size)
-                val.dump(self.file)
+                await self.async_file.exec(self.async_file.size, lambda f: val.dump(f))
                 self.async_file.size += val.size
                 # 状态设为0
-                self.file.seek(org_val.ptr)
-                self.file.write(pack('B', 0))
+                await self.async_file.write(org_val.ptr, pack('B', 0))
 
                 # 释放
                 token.free_param = lambda: self.free(org_val.ptr, org_val.size)
@@ -233,6 +250,7 @@ class Engine(BasicEngine):
                 # 命令
                 self.ensure_write(token, address, pack('Q', val.ptr), depend)
             self.do_cum(token, free_nodes, command_map)
+            await self.notify_all()
 
         def split(address: int, par: IndexNode, child_index: int, child: IndexNode, depend: int):
             org_par = par.clone()
@@ -293,18 +311,17 @@ class Engine(BasicEngine):
             index = bisect(cursor.keys, key)
             # 检查key是否已存在
             if cursor.keys[index - 1] == key:
-                return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], cursor.ptr)
+                return await replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], cursor.ptr)
 
             ptr = cursor.ptrs_child[index]
             child = self.task_que.get(token, ptr)
             if not child:
-                self.file.seek(ptr)
-                child = IndexNode(file=self.file)
+                await self.async_file.exec(ptr, lambda f: IndexNode(file=f))
             self.time_travel(token, child)
 
             i = bisect_left(child.keys, key)
             if i < len(child.keys) and child.keys[i] == key:
-                return replace(child.nth_value_ads(i), child.ptrs_value[i], child.ptr)
+                return await replace(child.nth_value_ads(i), child.ptrs_value[i], child.ptr)
 
             if len(child.keys) == 2 * MIN_DEGREE - 1:
                 split(address, cursor, index, child, depend)
@@ -322,14 +339,13 @@ class Engine(BasicEngine):
         index = bisect(cursor.keys, key)
         # cursor可能是root且可能为空
         if cursor is self.root and cursor.keys and cursor.keys[index - 1] == key:
-            return replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], cursor.ptr)
+            return await replace(cursor.nth_value_ads(index - 1), cursor.ptrs_value[index - 1], cursor.ptr)
 
         org_cursor = cursor.clone()
         val = ValueNode(key, value)
         val_b = bytes(val)
         val.ptr = self.malloc(val.size)
-        self.file.seek(val.ptr)
-        self.file.write(val_b)
+        await self.async_file.write(val.ptr, val_b)
 
         cursor.keys.insert(index, val.key)
         cursor.ptrs_value.insert(index, val.ptr)
@@ -347,22 +363,23 @@ class Engine(BasicEngine):
         # 命令
         command_map.update({address: (pack('Q', cursor.ptr), depend), cursor.ptr: cursor_b})
         self.do_cum(token, free_nodes, command_map)
+        await self.notify_all()
 
-    def pop(self, key):
+    async def pop(self, key):
         token = self.task_que.create(is_active=True)
         free_nodes = []
         command_map = {}
+        await self.wait()
+        self.is_changing = True
 
-        def indicate(val: ValueNode):
-            self.file.seek(val.ptr)
-            self.file.write(pack('B', 0))
+        async def indicate(val: ValueNode):
+            await self.async_file.write(val.ptr, pack('B', 0))
             token.free_param = lambda: self.free(val.ptr, val.size)
 
-        def fetch(ptr: int) -> IndexNode:
+        async def fetch(ptr: int) -> IndexNode:
             result = self.task_que.get(token, ptr)
             if not result:
-                self.file.seek(ptr)
-                result = IndexNode(file=self.file)
+                result = await self.async_file.exec(ptr, lambda f: IndexNode(file=f))
             self.time_travel(token, result)
             return result
 
@@ -530,13 +547,12 @@ class Engine(BasicEngine):
             # 命令
             command_map.update({address: (pack('Q', par.ptr), depend), par.ptr: par_b, cursor.ptr: cursor_b})
 
-        def travel(address: int, init: IndexNode, key, depend: int):
+        async def travel(address: int, init: IndexNode, key, depend: int):
             index = bisect(init.keys, key) - 1
 
-            def key_in_leaf():
+            async def key_in_leaf():
                 org_init = init.clone()
-                self.file.seek(init.ptrs_value[index])
-                val = ValueNode(file=self.file)
+                val = await self.async_file.exec(init.ptrs_value[index], lambda f: ValueNode(file=f))
                 # 内存
                 del init.keys[index]
                 del init.ptrs_value[index]
@@ -568,33 +584,33 @@ class Engine(BasicEngine):
             if index >= 0 and init.keys[index] == key:
                 # 位于叶节点
                 if init.is_leaf:
-                    return key_in_leaf()
+                    return await key_in_leaf()
                 # 位于内部节点
                 else:
                     left_ptr = init.ptrs_child[index]
-                    left_child = fetch(left_ptr)
+                    left_child = await fetch(left_ptr)
                     right_ptr = init.ptrs_child[index + 1]
-                    right_child = fetch(right_ptr)
+                    right_child = await fetch(right_ptr)
 
                     # 左子节点 >= t
                     if len(left_child.keys) >= MIN_DEGREE:
                         rotate_left(address, init, index, left_child, right_child, depend)
-                        return travel(init.nth_child_ads(index + 1), right_child, key, init.ptr)
+                        return await travel(init.nth_child_ads(index + 1), right_child, key, init.ptr)
                     # 右子节点 >= t
                     elif len(right_child.keys) >= MIN_DEGREE:
                         rotate_right(address, init, index, left_child, right_child, depend)
-                        return travel(init.nth_child_ads(index), left_child, key, init.ptr)
+                        return await travel(init.nth_child_ads(index), left_child, key, init.ptr)
                     # 左右子节点均 < t
                     else:
                         merge_left(address, init, index, left_child, right_child, depend)
                         if len(self.root.keys) == 0:
                             root_is_empty(right_child)
-                        return travel(init.nth_child_ads(index), right_child, key, init.ptr)
+                        return await travel(init.nth_child_ads(index), right_child, key, init.ptr)
             # 向下寻找
             elif not init.is_leaf:
                 index += 1
                 ptr = init.ptrs_child[index]
-                cursor = fetch(ptr)
+                cursor = await fetch(ptr)
 
                 # 目标 < t
                 if len(cursor.keys) < MIN_DEGREE:
@@ -602,19 +618,19 @@ class Engine(BasicEngine):
 
                     if index - 1 >= 0:
                         left_ptr = init.ptrs_child[index - 1]
-                        left_sibling = fetch(left_ptr)
+                        left_sibling = await fetch(left_ptr)
                         # 左sibling >= t
                         if len(left_sibling.keys) >= MIN_DEGREE:
                             rotate_left(address, init, index - 1, left_sibling, cursor, depend)
-                            return travel(init.nth_child_ads(index), cursor, key, init.ptr)
+                            return await travel(init.nth_child_ads(index), cursor, key, init.ptr)
 
                     if index + 1 < len(init.ptrs_child):
                         right_ptr = init.ptrs_child[index + 1]
-                        right_sibling = fetch(right_ptr)
+                        right_sibling = await fetch(right_ptr)
                         # 右sibling >= t
                         if len(right_sibling.keys) >= MIN_DEGREE:
                             rotate_right(address, init, index, cursor, right_sibling, depend)
-                            return travel(init.nth_child_ads(index), cursor, key, init.ptr)
+                            return await travel(init.nth_child_ads(index), cursor, key, init.ptr)
 
                     # 无sibling >= t
                     if left_sibling:
@@ -624,16 +640,18 @@ class Engine(BasicEngine):
                         merge_right(address, init, index, cursor, right_sibling, depend)
                     if len(self.root.keys) == 0:
                         root_is_empty(cursor)
-                return travel(init.nth_child_ads(index), cursor, key, init.ptr)
+                return await travel(init.nth_child_ads(index), cursor, key, init.ptr)
 
-        travel(1, self.root, key, 0)
+        await travel(1, self.root, key, 0)
         self.do_cum(token, free_nodes, command_map)
+        await self.notify_all()
 
     async def items(self, item_from=None, item_to=None, max_len=0, reverse=False):
         assert item_from <= item_to if item_from and item_to else True
         token = self.task_que.create(is_active=False)
         token.command_num += 1
         result = []
+        await self.wait()
 
         async def travel(init: IndexNode):
             async def get_item(index: int):

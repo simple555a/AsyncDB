@@ -27,11 +27,11 @@ class AsyncDB:
         self.assert_open()
         return coro()
 
-    def __setitem__(self, key, value):
+    async def set(self, key, value):
         self.assert_open()
         if key not in self.cache or self.cache[key] != value:
             self.cache[key] = value
-            self.engine.set(key, value)
+            await self.engine.set(key, value)
 
     def pop(self, key):
         self.assert_open()

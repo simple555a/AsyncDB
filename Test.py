@@ -29,7 +29,7 @@ async def acid_t():
             print('set', rand_key)
 
             cp[rand_key] = rand_value
-            db[rand_key] = rand_value
+            await db.set(rand_key, rand_value)
 
         # 删
         if randint(0, 1):
@@ -38,7 +38,7 @@ async def acid_t():
 
             if rand_key in cp:
                 del cp[rand_key]
-            db.pop(rand_key)
+            await db.pop(rand_key)
 
         # 读
         if randint(0, 1):
@@ -87,7 +87,7 @@ async def acid_t():
 
 def main():
     loop = get_event_loop()
-    for i in range(100):
+    for i in range(1):
         loop.run_until_complete(acid_t())
         remove(NAME)
 
