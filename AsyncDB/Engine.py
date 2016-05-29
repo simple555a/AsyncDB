@@ -1,4 +1,4 @@
-from asyncio import ensure_future, Lock, Condition
+from asyncio import ensure_future, Lock, Event
 from bisect import insort, bisect, bisect_left
 from collections import UserList
 from contextlib import suppress
@@ -51,11 +51,12 @@ class BasicEngine:
         self.lock = Lock()
         # on_interval: (begin, end)
         self.on_interval = None
-        self.on_write = False
+        self.do_write = False
         self.task_que = TaskQue()
 
-        self.condition = Condition()
         self.is_changing = False
+        self.event = Event()
+        self.event.set()
 
     def malloc(self, size: int) -> int:
         def is_inside(ptr: int):
@@ -108,7 +109,7 @@ class BasicEngine:
     def ensure_write(self, token: Task, ptr: int, data: bytes, depend=0):
         async def coro():
             while self.command_que:
-                await self.wait()
+                await self.event.wait()
                 ptr, token, data, depend = self.command_que.pop(0)
                 cancel = depend and self.task_que.is_canceled(token, depend)
                 if not cancel:
@@ -117,29 +118,17 @@ class BasicEngine:
                     # 确保边界不相连
                     self.on_interval = (ptr - 1, ptr + len(data) + 1)
                     await self.async_file.write(ptr, data)
+                    await self.event.wait()
                     self.on_interval = None
                 self.a_command_done(token)
-            self.on_write = False
+            self.do_write = False
 
-        if not self.on_write:
-            self.on_write = True
+        if not self.do_write:
+            self.do_write = True
             ensure_future(coro())
         # 按ptr和token.id排序
         self.command_que.append((ptr, token, data, depend))
         token.command_num += 1
-
-    async def wait(self):
-        if self.is_changing:
-            if not self.condition.locked():
-                await self.condition.acquire()
-            await self.condition.wait()
-
-    async def notify_all(self):
-        self.is_changing = False
-        if not self.condition.locked():
-            await self.condition.acquire()
-        self.condition.notify_all()
-        self.condition.release()
 
     def close(self):
         self.file.seek(0)
@@ -188,9 +177,12 @@ class Engine(BasicEngine):
             remove(temp)
 
     async def get(self, key):
+        await self.event.wait()
         token = self.task_que.create(is_active=False)
         token.command_num += 1
-        await self.wait()
+
+        if self.is_changing:
+            assert False
 
         async def travel(ptr: int):
             init = self.task_que.get(token, ptr, is_active=False)
@@ -226,12 +218,16 @@ class Engine(BasicEngine):
             return self.a_command_done(token)
 
     async def set(self, key, value):
+        await self.event.wait()
+        self.event.clear()
         token = self.task_que.create(is_active=True)
         free_nodes = []
         # command_map: {..., ptr: data OR (data, depend)}
         command_map = {}
-        await self.wait()
-        self.is_changing = True
+
+        if self.is_changing:
+            assert False
+        self.is_changing += 1
 
         async def replace(address: int, ptr: int, depend: int):
             org_val = await self.async_file.exec(ptr, lambda f: ValueNode(file=f))
@@ -250,7 +246,8 @@ class Engine(BasicEngine):
                 # 命令
                 self.ensure_write(token, address, pack('Q', val.ptr), depend)
             self.do_cum(token, free_nodes, command_map)
-            await self.notify_all()
+            self.is_changing -= 1
+            self.event.set()
 
         def split(address: int, par: IndexNode, child_index: int, child: IndexNode, depend: int):
             org_par = par.clone()
@@ -316,7 +313,7 @@ class Engine(BasicEngine):
             ptr = cursor.ptrs_child[index]
             child = self.task_que.get(token, ptr)
             if not child:
-                await self.async_file.exec(ptr, lambda f: IndexNode(file=f))
+                child = await self.async_file.exec(ptr, lambda f: IndexNode(file=f))
             self.time_travel(token, child)
 
             i = bisect_left(child.keys, key)
@@ -363,14 +360,20 @@ class Engine(BasicEngine):
         # 命令
         command_map.update({address: (pack('Q', cursor.ptr), depend), cursor.ptr: cursor_b})
         self.do_cum(token, free_nodes, command_map)
-        await self.notify_all()
+        self.is_changing -= 1
+        self.event.set()
 
     async def pop(self, key):
+        await self.event.wait()
         token = self.task_que.create(is_active=True)
+        self.event.clear()
+
         free_nodes = []
         command_map = {}
-        await self.wait()
-        self.is_changing = True
+
+        if self.is_changing:
+            assert False
+        self.is_changing += 1
 
         async def indicate(val: ValueNode):
             await self.async_file.write(val.ptr, pack('B', 0))
@@ -560,7 +563,7 @@ class Engine(BasicEngine):
                 init_b = bytes(init)
                 init.ptr = self.malloc(init.size)
                 # 释放
-                indicate(val)
+                await indicate(val)
                 free_nodes.append(org_init)
                 # 同步
                 _ = None
@@ -644,14 +647,18 @@ class Engine(BasicEngine):
 
         await travel(1, self.root, key, 0)
         self.do_cum(token, free_nodes, command_map)
-        await self.notify_all()
+        self.is_changing -= 1
+        self.event.set()
 
     async def items(self, item_from=None, item_to=None, max_len=0, reverse=False):
         assert item_from <= item_to if item_from and item_to else True
+        await self.event.wait()
         token = self.task_que.create(is_active=False)
         token.command_num += 1
         result = []
-        await self.wait()
+
+        if self.is_changing:
+            assert False
 
         async def travel(init: IndexNode):
             async def get_item(index: int):
