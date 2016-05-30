@@ -72,11 +72,11 @@ class TaskQue:
 
         # 查询
         if ptr in self.virtual_map:
+            depend_id = get_depend_id()
             id_list, memo_list = self.virtual_map[ptr]
             index = bisect(id_list, token.id)
 
             result = None
-            depend_id = get_depend_id()
             if index - 1 >= 0 and depend_id <= id_list[index - 1]:
                 result = memo_list[index - 1].tail
             elif index < len(id_list) and depend_id <= id_list[index]:

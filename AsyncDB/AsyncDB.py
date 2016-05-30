@@ -26,9 +26,10 @@ class AsyncDB:
         return coro()
 
     def __setitem__(self, key, value):
-        if key not in self.cache or self.cache[key] != value:
-            self.cache[key] = value
-            self.engine.set(key, value)
+        if key in self.cache and self.cache[key] == value:
+            return
+        self.cache[key] = value
+        self.engine.set(key, value)
 
     def pop(self, key):
         if key in self.cache:

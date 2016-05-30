@@ -20,7 +20,7 @@ class SortedList(UserList):
 
 OP = b'\x00'
 ED = b'\x01'
-MIN_DEGREE = 64
+MIN_DEGREE = 3
 
 
 class BasicEngine:
@@ -561,7 +561,7 @@ class Engine(BasicEngine):
                 for ptr, head, tail in ((address, self.root.ptr, successor.ptr),
                                         (self.root.ptr, self.root, _), (successor.ptr, _, successor)):
                     self.task_que.set(token, ptr, head, tail)
-                command_map.update({address: pack('Q', successor.ptr)})
+                command_map[address] = pack('Q', successor.ptr)
                 self.root = successor
 
             # 已定位

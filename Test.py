@@ -1,4 +1,4 @@
-from asyncio import get_event_loop, ensure_future, sleep
+from asyncio import get_event_loop, sleep, ensure_future
 from os import remove
 from os.path import isfile
 from random import randint
