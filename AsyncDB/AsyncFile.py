@@ -36,10 +36,10 @@ class FastIO:
 
 
 class AsyncFile:
-    def __init__(self, filename: str, io_num=4):
+    def __init__(self, filename: str, co_num=4):
         self.size = getsize(filename)
-        self.executor = ThreadPoolExecutor(io_num)
-        self.io_que = deque((FastIO(filename) for _ in range(io_num + 1)), io_num + 1)
+        self.executor = ThreadPoolExecutor(co_num)
+        self.io_que = deque((FastIO(filename) for _ in range(co_num + 1)), co_num + 1)
 
     async def read(self, offset: int, length: int):
         def async_call():

@@ -20,7 +20,7 @@ class SortedList(UserList):
 
 OP = b'\x00'
 ED = b'\x01'
-MIN_DEGREE = 3
+MIN_DEGREE = 64
 
 
 class BasicEngine:
