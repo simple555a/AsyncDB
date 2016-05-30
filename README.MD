@@ -19,16 +19,22 @@ Copy "AsyncDB" folder to the root of your program.
 ```Python
 from AsyncDB import AsyncDB
 
+# open/create
 db = AsyncDB('Test.db')
 
+# set
 val = await db['key']
 
+# get
 db['key'] = 'value'
 
+# pop/del
 val = db.pop('key')
 
+# iter
 items = await db.items(item_from='begin', item_to='end', max_len=1024, reverse=False)
 
+# safely close
 await db.close()
 ```
 

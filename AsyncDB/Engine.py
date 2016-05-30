@@ -51,8 +51,7 @@ class BasicEngine:
         self.command_que = SortedList()
         self.file = open(filename, 'rb+', buffering=0)
         self.lock = Lock()
-        # on_interval: (begin, end)
-        self.on_interval = None
+        self.on_interval = (0, 1)
         self.on_write = False
         self.task_que = TaskQue()
 
@@ -62,7 +61,7 @@ class BasicEngine:
             return begin <= ptr <= end or begin <= ptr + size <= end
 
         ptr = self.allocator.malloc(size)
-        if ptr and self.on_interval and is_inside(ptr):
+        if ptr and is_inside(ptr):
             self.free(ptr, size)
             ptr = 0
         if not ptr:
@@ -103,7 +102,6 @@ class BasicEngine:
             self.ensure_write(token, ptr, data, depend)
         self.time_travel(token, self.root)
         self.root = self.root.clone()
-        self.file.flush()
 
     def ensure_write(self, token: Task, ptr: int, data: bytes, depend=0):
         async def coro():
