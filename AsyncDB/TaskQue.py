@@ -12,7 +12,7 @@ class Task:
         self.is_active = is_active
         self.command_num = command_num
 
-        if self.is_active:
+        if is_active:
             self.ptrs = []
             # free_param: (ptr, size)
             self.free_param = None
@@ -30,7 +30,6 @@ class TaskQue:
         self.virtual_map = {}
 
     def create(self, is_active: bool) -> Task:
-        # Query改动索引；Queue为空；上一个Query改动索引
         if is_active or not self.que or self.que[-1].is_active:
             token = Task(self.next_id, is_active)
             self.next_id += 1
@@ -43,7 +42,6 @@ class TaskQue:
         if ptr == 0:
             return
 
-        # 建立映射
         memo = Memo(head, tail)
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
@@ -72,7 +70,7 @@ class TaskQue:
             else:
                 return 0
 
-        # 查询映射
+        # 查询
         if ptr in self.virtual_map:
             id_list, memo_list = self.virtual_map[ptr]
             index = bisect(id_list, token.id)
@@ -102,7 +100,6 @@ class TaskQue:
                 break
             else:
                 if head.is_active:
-                    # 清理
                     if isinstance(head.free_param, Callable):
                         head.free_param()
                     for ptr in head.ptrs:

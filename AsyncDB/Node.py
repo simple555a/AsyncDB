@@ -26,7 +26,6 @@ class IndexNode:
 
     def load(self, file: FileIO):
         self.ptr = file.tell()
-        # IndexNode: [is_leaf, [..., key]] + ptrs_value + ptrs_child if not is_leaf
         self.is_leaf, self.keys = load(file)
 
         ptr_num = len(self.keys)
@@ -85,8 +84,8 @@ class ValueNode:
 
     def load(self, file: FileIO):
         self.ptr = file.tell()
-        indic = file.read(1)
-        assert unpack('B', indic)[0] in (0, 1)
+        indicator = file.read(1)
+        assert unpack('B', indicator)[0] in (0, 1)
         self.key, self.value = load(file)
         self.size = file.tell() - self.ptr
 

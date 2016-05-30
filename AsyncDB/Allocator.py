@@ -13,7 +13,7 @@ class SizeQue(UserList):
             return self.data.pop(0)
 
     def find(self, size: int) -> int:
-        # 默认Queue非空
+        # 默认非空
         index = bisect_left(self.data, size)
         if index < len(self.data):
             return index
@@ -45,7 +45,6 @@ class Allocator:
     def malloc(self, size: int) -> int:
         if self.size_que:
             index = self.size_que.find(size)
-            # 存在可用空间
             if index is not None:
                 size_exist = self.size_que[index]
                 ptr = self.size_map.discard(size_exist)
@@ -61,7 +60,7 @@ class Allocator:
         if size == 0:
             return
 
-        # 检测是否可以合并
+        # 检测是否合并
         tail_ptr = ptr + size
         while tail_ptr in self.ptr_map:
             tail_size = self.ptr_map.pop(tail_ptr)
@@ -85,7 +84,6 @@ class Allocator:
             else:
                 self.ptr_map[ptr] = size
                 self.size_map.add(size, ptr)
-
             # 溢出
             if size_remove:
                 for ptr in self.size_map[size_remove]:

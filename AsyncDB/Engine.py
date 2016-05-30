@@ -18,6 +18,8 @@ class SortedList(UserList):
         insort(self.data, item)
 
 
+OP = b'\x00'
+ED = b'\x01'
 MIN_DEGREE = 64
 
 
@@ -27,14 +29,14 @@ class BasicEngine:
         if not isfile(filename):
             with open(filename, 'wb') as file:
                 # indicator
-                file.write(b'\x00')
+                file.write(OP)
                 # root
                 file.write(pack('Q', 9))
                 self.root = IndexNode(is_leaf=True)
                 self.root.dump(file)
         else:
             with open(filename, 'rb+') as file:
-                if file.read(1) == b'\x00':
+                if file.read(1) == OP:
                     file.close()
                     return BasicEngine.repair(filename)
                 else:
@@ -42,7 +44,7 @@ class BasicEngine:
                     file.seek(ptr)
                     self.root = IndexNode(file=file)
                     file.seek(0)
-                    file.write(b'\x00')
+                    file.write(OP)
 
         self.allocator = Allocator()
         self.async_file = AsyncFile(filename)
@@ -55,7 +57,7 @@ class BasicEngine:
         self.task_que = TaskQue()
 
     def malloc(self, size: int) -> int:
-        def is_inside(ptr: int):
+        def is_inside(ptr: int) -> bool:
             begin, end = self.on_interval
             return begin <= ptr <= end or begin <= ptr + size <= end
 
@@ -126,7 +128,7 @@ class BasicEngine:
 
     def close(self):
         self.file.seek(0)
-        self.file.write(b'\x01')
+        self.file.write(ED)
         self.file.close()
         self.async_file.close()
 
@@ -136,11 +138,9 @@ class BasicEngine:
         size = getsize(filename)
         with open(filename, 'rb') as file, open('$' + temp, 'wb') as items:
             file.seek(9)
-            while True:
-                if file.tell() == size:
-                    break
-                indic = file.read(1)
-                if indic != b'\x01':
+            while file.tell() != size:
+                indicator = file.read(1)
+                if indicator != ED:
                     continue
                 with suppress(EOFError, UnpicklingError):
                     item = load(file)
@@ -164,8 +164,8 @@ class Engine(BasicEngine):
             with open(temp, 'rb') as items:
                 while True:
                     try:
-                        item = load(items)
-                        self.set(*item)
+                        key, value = load(items)
+                        self.set(key, value)
                     except EOFError:
                         break
             remove(temp)
@@ -217,7 +217,7 @@ class Engine(BasicEngine):
             self.file.seek(ptr)
             org_val = ValueNode(file=self.file)
             if org_val.value != value:
-                # 文件尾写入新Val
+                # 写入新Val
                 val = ValueNode(key, value)
                 self.file.seek(self.async_file.size)
                 val.dump(self.file)

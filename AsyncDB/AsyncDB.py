@@ -35,8 +35,8 @@ class AsyncDB:
             del self.cache[key]
         return self.engine.pop(key)
 
-    def items(self, item_from=None, item_to=None, max_len=0, reverse=False):
-        return self.engine.items(item_from, item_to, max_len, reverse)
+    async def items(self, item_from=None, item_to=None, max_len=0, reverse=False):
+        return await self.engine.items(item_from, item_to, max_len, reverse)
 
     async def close(self):
         if self.engine.task_que.que:
