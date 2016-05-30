@@ -103,6 +103,7 @@ class BasicEngine:
             self.ensure_write(token, ptr, data, depend)
         self.time_travel(token, self.root)
         self.root = self.root.clone()
+        self.file.flush()
 
     def ensure_write(self, token: Task, ptr: int, data: bytes, depend=0):
         async def coro():
@@ -115,7 +116,6 @@ class BasicEngine:
                     # 确保边界不相连
                     self.on_interval = (ptr - 1, ptr + len(data) + 1)
                     await self.async_file.write(ptr, data)
-                    self.on_interval = None
                 self.a_command_done(token)
             self.on_write = False
 
