@@ -9,7 +9,7 @@ The DB can get some optimizations that cannot be done with traditional databases
 * Only compatible with coroutine environment.
 * All keys must be "bisectable" i.e. can be sorted by bisect.insort.
 * There is cache inside. The result can be a reference of the previous result.
-* The DB guarantees ACID properties with software failures but hardware.
+* The DB guarantees ACID properties with software failure but hardware.
 * If the DB gets closed unexpectedly, it will repair itself next time, which takes time.
 * The source code is shared under MIT license.
 
@@ -21,11 +21,11 @@ from AsyncDB import AsyncDB
 
 db = AsyncDB('Test.db')
 
+val = await db['key']
+
 db['key'] = 'value'
 
 val = db.pop('key')
-
-val = await db['key']
 
 items = await db.items(item_from='begin', item_to='end', max_len=1024, reverse=False)
 
@@ -44,4 +44,4 @@ await db.close()
 * 内置缓存，得到的结果有可能是之前结果的引用。
 * ACID，软件可以在任意时刻崩溃，数据都是安全的，但对硬件断电之类的情况不做保证。
 * 非正常关闭，下一次启动，程序会自动修复数据库，这会相当费时。
-* 以MIT协议发布。
+* MIT协议发布。
